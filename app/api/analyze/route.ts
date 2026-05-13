@@ -6,7 +6,7 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// 🔥 extraer precio real desde texto
+// 🔥 limpiar precio correctamente
 function extractPrice(price: any): number | null {
   if (!price) return null;
 
@@ -61,7 +61,7 @@ async function scrapeMarketplaceData(url: string) {
   }
 }
 
-// 🌎 MERCADO GENERAL FACEBOOK CHILE
+// 🌎 mercado completo Chile
 async function scrapeMarketComparison(url: string) {
   try {
     const apify = new ApifyClient({
@@ -78,11 +78,16 @@ async function scrapeMarketComparison(url: string) {
 
     const { items } = await apify.dataset(datasetId).listItems();
 
-    return items
+    if (!items || items.length === 0) return [];
+
+    // 🔥 limpiar precios válidos
+    const cleaned = items
       .map((item: any) => ({
         precio: extractPrice(item.price),
       }))
-      .filter((x: any) => x.precio !== null);
+      .filter((x: any) => typeof x.precio === "number" && !isNaN(x.precio));
+
+    return cleaned;
   } catch {
     return [];
   }
@@ -100,12 +105,16 @@ export async function POST(request: Request) {
       patente: patente || "No proporcionada",
     };
 
-    // 📊 PROMEDIO MERCADO CHILE
-    const prices = marketData.map((x) => x.precio);
+    // 🔥 FIX DEFINITIVO TYPESCRIPT SAFE
+    const prices: number[] = marketData
+      .map((x) => x.precio)
+      .filter((p): p is number => typeof p === "number" && !isNaN(p));
 
     const avgMarket =
       prices.length > 0
-        ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length)
+        ? Math.round(
+            prices.reduce((a, b) => a + b, 0) / prices.length
+          )
         : null;
 
     const completion = await client.chat.completions.create({
@@ -117,11 +126,10 @@ export async function POST(request: Request) {
 Eres un experto en compra y venta de autos en Chile.
 
 OBLIGATORIO:
-
 - Detectar precio del post
-- Comparar con promedio REAL del mercado chileno (Facebook Marketplace)
+- Comparar con promedio real del mercado chileno (Facebook Marketplace)
 - Calcular diferencia en porcentaje
-- Estimar precio máximo para ganar 20–30%
+- Dar precio máximo con 20–30% ganancia
 
 FORMATO:
 
