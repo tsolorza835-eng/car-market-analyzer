@@ -124,7 +124,7 @@ Incluye:
       completion.choices[0]?.message?.content ||
       "No se pudo generar el análisis.";
 
-    // Enlaces útiles con el sitio correcto de la AACH
+    // Enlaces útiles
     if (patente && patente.trim() !== "") {
       analysis += `
 
@@ -134,7 +134,7 @@ Incluye:
 https://alertavehiculo.cl
 
 🛡️ AACH - Asociación de Aseguradores de Chile:
-https://www.conocetuvehiculo.cl
+https://www.aach.cl
 `;
     }
 
