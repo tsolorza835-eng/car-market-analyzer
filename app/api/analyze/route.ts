@@ -59,7 +59,7 @@ function emptyResult(url: string) {
 }
 
 // ======================
-// 🚗 SCRAPER POST INDIVIDUAL (BLINDADO)
+// 🚗 SCRAPER POST
 // ======================
 
 async function scrapeMarketplaceData(url: string) {
@@ -119,10 +119,13 @@ async function scrapeMarketplaceData(url: string) {
 }
 
 // ======================
-// 📊 MERCADO REAL (FIX IMPORTANTE)
+// 📊 MERCADO CONCEPCIÓN (BULLETPROOF)
 // ======================
 
-async function scrapeMarketComparisonByModel(model: string | null, year: number | null) {
+async function scrapeMarketComparisonByModel(
+  model: string | null,
+  year: number | null
+) {
   try {
     if (!model) return [];
 
@@ -130,19 +133,34 @@ async function scrapeMarketComparisonByModel(model: string | null, year: number 
       token: process.env.APIFY_TOKEN,
     });
 
-    const searchQuery = `${model} ${year ?? ""} chile`;
+    const queries = [
+      `${model} concepción`,
+      `${model} chile`,
+      `${model} ${year ?? ""}`,
+      `${model} usados`
+    ];
 
-    const run = await apify.actor("apify/facebook-marketplace-scraper").call({
-      search: searchQuery,
-      maxItems: 50,
-    });
+    let allItems: any[] = [];
 
-    const datasetId = run.defaultDatasetId;
-    if (!datasetId) return [];
+    for (const q of queries) {
+      const run = await apify.actor("apify/facebook-marketplace-scraper").call({
+        search: q,
+        maxItems: 30,
+      });
 
-    const { items } = await apify.dataset(datasetId).listItems();
+      const datasetId = run.defaultDatasetId;
+      if (!datasetId) continue;
 
-    return (items || [])
+      const { items } = await apify.dataset(datasetId).listItems();
+
+      if (items?.length) {
+        allItems = allItems.concat(items);
+      }
+    }
+
+    if (allItems.length === 0) return [];
+
+    return allItems
       .map((item: any) => {
         const raw = [
           item?.price,
@@ -169,10 +187,10 @@ export async function POST(request: Request) {
   try {
     const { url } = await request.json();
 
-    // 🚗 1. POST INDIVIDUAL
+    // 🚗 VEHÍCULO
     const carData = await scrapeMarketplaceData(url);
 
-    // 📊 2. MERCADO REAL (POR MODELO, NO POR URL)
+    // 📊 MERCADO
     const marketData = await scrapeMarketComparisonByModel(
       carData.modelo,
       carData.anio
@@ -187,7 +205,31 @@ export async function POST(request: Request) {
         ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length)
         : null;
 
-    // 🤖 3. IA ANALYST
+    // ======================
+    // 📊 MATH ENGINE REAL
+    // ======================
+
+    const publicationPrice = carData.precioNum;
+
+    let differencePercent = null;
+    let profit = null;
+    let maxBuy20 = null;
+    let maxBuy30 = null;
+
+    if (avgMarket && publicationPrice) {
+      differencePercent =
+        ((publicationPrice - avgMarket) / avgMarket) * 100;
+
+      profit = avgMarket - publicationPrice;
+
+      maxBuy20 = Math.round(avgMarket * 0.8);
+      maxBuy30 = Math.round(avgMarket * 0.7);
+    }
+
+    // ======================
+    // 🤖 IA (SOLO EXPLICA)
+    // ======================
+
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -197,8 +239,8 @@ export async function POST(request: Request) {
 Eres un analista de autos en Chile.
 
 REGLAS:
-- NO inventes datos
-- NO inventes riesgos
+- NO inventes números
+- SOLO explica lo que recibe
 - Si falta info → "No disponible"
 
 FORMATO:
@@ -207,22 +249,35 @@ FORMATO:
 📅 AÑO
 💰 PRECIO PUBLICACIÓN
 📊 PROMEDIO MERCADO
-📉 PRECIO JUSTO COMPRA
-⚖️ DIFERENCIA %
+📍 PROMEDIO CONCEPCIÓN
+📉 DIFERENCIA %
 🎯 GANANCIA
-⚠️ RIESGOS (solo si existen datos reales)
+💰 PRECIO MÁXIMO COMPRA (20-30%)
+⚠️ RIESGOS
 🏁 VEREDICTO
 `
         },
         {
           role: "user",
           content: `
-DATOS VEHÍCULO:
-
+VEHÍCULO:
 ${JSON.stringify(carData, null, 2)}
 
-📊 MERCADO:
+📊 PROMEDIO MERCADO:
 ${avgMarket ?? "No disponible"}
+
+📉 DIFERENCIA %:
+${differencePercent ?? "No disponible"}
+
+🎯 GANANCIA:
+${profit ?? "No disponible"}
+
+💰 PRECIO MÁXIMO COMPRA:
+- 20%: ${maxBuy20 ?? "No disponible"}
+- 30%: ${maxBuy30 ?? "No disponible"}
+
+📍 NOTA:
+El mercado está filtrado para Chile/Concepción.
 `
         }
       ],
@@ -237,6 +292,10 @@ ${avgMarket ?? "No disponible"}
       anioDetectado: carData.anio,
       avgMarketPrice: avgMarket,
       marketCount: prices.length,
+      maxBuy20,
+      maxBuy30,
+      differencePercent,
+      profit,
     });
 
   } catch (error) {
