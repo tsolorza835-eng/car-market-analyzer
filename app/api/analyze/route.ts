@@ -93,57 +93,28 @@ export async function POST(request: Request) {
           role: "system",
           content: `
 Eres un experto profesional en compra y venta de autos usados en Chile.
-
-Tu cliente compra vehículos para revenderlos y necesita saber exactamente cuánto debe pagar como máximo para obtener una utilidad mínima del 20% y una utilidad ideal del 30%.
-
-OBJETIVO PRINCIPAL:
-Determinar un PRECIO MÁXIMO DE COMPRA concreto y numérico.
-
-REGLAS OBLIGATORIAS:
-- Nunca digas que no es posible analizar.
-- Usa toda la información disponible.
-- Si faltan datos, realiza estimaciones razonables.
-- Todos los montos deben expresarse en pesos chilenos (CLP).
-
-METODOLOGÍA:
-- Valor de mercado estimado = precio probable de reventa.
-- Precio máximo conservador = valor de mercado × 0.70
-- Precio máximo recomendado = valor de mercado × 0.75
-- Precio máximo agresivo = valor de mercado × 0.80
-          `,
+Debes determinar cuánto pagar como máximo para revender con utilidad del 20% al 30%.
+Todos los montos deben expresarse en pesos chilenos (CLP).
+Nunca digas que no es posible analizar.
+`,
         },
         {
           role: "user",
           content: `
-Analiza el siguiente vehículo publicado en Facebook Marketplace.
+Analiza el siguiente vehículo:
 
-DATOS DISPONIBLES:
 ${JSON.stringify(fullData, null, 2)}
 
-FORMATO OBLIGATORIO DE RESPUESTA:
-
-🚗 Vehículo identificado:
-🔢 Patente:
-💰 Precio publicado:
-📈 Valor de mercado estimado:
-🎯 Precio máximo conservador:
-🎯 Precio máximo recomendado:
-🎯 Precio máximo agresivo:
-💵 Utilidad potencial estimada:
-📊 Evaluación del negocio:
-🔍 Coherencia del kilometraje:
-📈 Historial de kilometraje (últimos 6 años):
-📋 Revisión Técnica (PRT):
-🚦 Multas y observaciones:
-🔒 Prendas y limitaciones al dominio:
-🛣️ TAG y otras deudas:
-🏷️ Riesgo de vehículo de remate:
-🔧 Posibles costos y reparaciones:
-🤝 Estrategia de negociación sugerida:
-⚠️ Señales de alerta:
-🏆 Veredicto final:
-📝 Comentarios adicionales:
-          `,
+Incluye:
+- Valor de mercado estimado
+- Precio máximo recomendado
+- Riesgo de remate
+- Multas
+- PRT
+- TAG
+- Señales de alerta
+- Veredicto final
+`,
         },
       ],
       temperature: 0.2,
@@ -153,7 +124,7 @@ FORMATO OBLIGATORIO DE RESPUESTA:
       completion.choices[0]?.message?.content ||
       "No se pudo generar el análisis.";
 
-    // Agregar enlaces útiles SIN formato Markdown
+    // Enlaces útiles con el sitio correcto de la AACH
     if (patente && patente.trim() !== "") {
       analysis += `
 
@@ -162,7 +133,7 @@ FORMATO OBLIGATORIO DE RESPUESTA:
 🔍 Alerta Vehículo:
 https://alertavehiculo.cl
 
-🛡️ AACH - Conoce Tu Vehículo:
+🛡️ AACH - Asociación de Aseguradores de Chile:
 https://www.conocetuvehiculo.cl
 `;
     }
