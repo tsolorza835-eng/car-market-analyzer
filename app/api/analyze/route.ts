@@ -6,7 +6,7 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// 🔥 limpiar precio real
+// 🔥 Limpieza segura de precios
 function extractPrice(price: any): number | null {
   if (!price) return null;
 
@@ -31,18 +31,18 @@ async function scrapeMarketplaceData(url: string) {
     if (!datasetId) throw new Error("No dataset");
 
     const { items } = await apify.dataset(datasetId).listItems();
-    const item: any = items[0];
+    const item: any = items?.[0];
 
     return {
-      titulo: item.title || "",
-      precio: item.price || "",
-      precioNum: extractPrice(item.price),
-      descripcion: item.description || "",
-      ubicacion: item.location || "",
-      kilometraje: item.mileage || "",
-      anio: item.year || "",
-      marca: item.make || "",
-      modelo: item.model || "",
+      titulo: item?.title || "",
+      precio: item?.price || "",
+      precioNum: extractPrice(item?.price),
+      descripcion: item?.description || "",
+      ubicacion: item?.location || "",
+      kilometraje: item?.mileage || "",
+      anio: item?.year || "",
+      marca: item?.make || "",
+      modelo: item?.model || "",
       url,
     };
   } catch {
@@ -61,7 +61,7 @@ async function scrapeMarketplaceData(url: string) {
   }
 }
 
-// 🌎 mercado completo Chile
+// 🌎 Mercado Chile completo
 async function scrapeMarketComparison(url: string) {
   try {
     const apify = new ApifyClient({
@@ -78,11 +78,14 @@ async function scrapeMarketComparison(url: string) {
 
     const { items } = await apify.dataset(datasetId).listItems();
 
+    if (!items || items.length === 0) return [];
+
     return (items || [])
-      .map((item: any) => ({
-        precio: extractPrice(item.price),
-      }))
-      .filter((x: any) => typeof x.precio === "number" && !isNaN(x.precio));
+      .map((item: any) => {
+        const precio = extractPrice(item?.price);
+        return typeof precio === "number" ? precio : null;
+      })
+      .filter((p): p is number => p !== null && !isNaN(p));
 
   } catch {
     return [];
@@ -101,8 +104,10 @@ export async function POST(request: Request) {
       patente: patente || "No proporcionada",
     };
 
-    // 📊 promedio mercado Chile
-    const prices: number[] = marketData.map((x) => x.precio);
+    // 🔥 FIX DEFINITIVO TYPESCRIPT SAFE (SIN NULL JAMÁS)
+    const prices: number[] = marketData.filter(
+      (p): p is number => typeof p === "number" && !isNaN(p)
+    );
 
     const avgMarket =
       prices.length > 0
@@ -119,16 +124,12 @@ export async function POST(request: Request) {
           content: `
 Eres un experto en compra y venta de autos en Chile.
 
-🚨 REGLA FUNDAMENTAL:
+REGLA CLAVE:
 La ganancia del 20% al 30% se obtiene al REVENDER, no al comprar.
-
-Por lo tanto:
-- El precio de mercado es el precio de VENTA
-- El precio de compra debe ser MENOR al mercado
 
 CÁLCULO CORRECTO:
 - Precio justo de compra = 70% a 80% del promedio del mercado
-- Esto permite ganar 20–30% al vender al precio de mercado
+- Esto asegura ganancia real al vender al precio de mercado
 
 FORMATO:
 
@@ -187,7 +188,7 @@ https://www.aach.cl/CONREMATE/
       analysis: finalAnalysis,
       modeloDetectado,
       avgMarketPrice: avgMarket,
-      marketCount: marketData.length,
+      marketCount: prices.length,
     });
 
   } catch (error) {
