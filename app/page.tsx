@@ -60,6 +60,7 @@ export default function Home() {
       if (data.success) {
         setResult(data.analysis || "");
 
+        // 🔥 MODELO FINAL ROBUSTO
         const model =
           data.modeloDetectado ||
           data.data?.modelo ||
@@ -121,7 +122,7 @@ export default function Home() {
           borderRadius: 20,
         }}
       >
-        {/* TÍTULO LUCAS */}
+        {/* TITULO LUCAS */}
         <h1
           style={{
             textAlign: "center",
@@ -142,13 +143,7 @@ export default function Home() {
 
               <span style={{ fontSize: 22 }}>
                 Señor Lucas está investigando{" "}
-                {carModel ? (
-                  <span style={{ fontWeight: "bold" }}>
-                    el {carModel}
-                  </span>
-                ) : (
-                  "tu próximo auto"
-                )}
+                {carModel ? `el ${carModel}` : "tu próximo auto"}
                 {dots}
               </span>
             </div>
