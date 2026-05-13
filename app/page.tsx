@@ -1,11 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function Home() {
   const [url, setUrl] = useState("");
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
+  const [dots, setDots] = useState("");
+
+  // Animación de puntos: ".", "..", "..."
+  useEffect(() => {
+    if (!loading) {
+      setDots("");
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setDots((prev) => {
+        if (prev === "") return ".";
+        if (prev === ".") return "..";
+        if (prev === "..") return "...";
+        return "";
+      });
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [loading]);
 
   const handleAnalyze = async () => {
     if (!url.trim()) {
@@ -27,11 +47,9 @@ export default function Home() {
 
       const data = await response.json();
 
-      // Mostrar el análisis si la API responde correctamente
       if (data.success && data.analysis) {
         setResult(data.analysis);
       } else {
-        // Mostrar el error devuelto por la API o un mensaje genérico
         setResult(data.error || "❌ Error de conexión.");
       }
     } catch (error) {
@@ -121,7 +139,9 @@ export default function Home() {
             marginBottom: "25px",
           }}
         >
-          {loading ? "Sr Lucas" : "Chúpalo José Ignacio"}
+          {loading
+            ? `Señor Lucas está analizando${dots}`
+            : "Chúpalo José Ignacio"}
         </button>
 
         {result && (
