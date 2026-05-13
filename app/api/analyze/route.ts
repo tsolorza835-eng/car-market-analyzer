@@ -7,7 +7,7 @@ const client = new OpenAI({
 });
 
 // ======================
-// 🔥 HELPERS
+// 🧱 HELPERS BASE
 // ======================
 
 function cleanText(input: any): string {
@@ -48,8 +48,22 @@ function extractYear(text: string): number | null {
   return match ? parseInt(match[0]) : null;
 }
 
+// 🧱 fallback vacío seguro
+function emptyResult(url: string) {
+  return {
+    titulo: "No detectado",
+    precio: "",
+    precioNum: null,
+    modelo: null,
+    anio: null,
+    descripcion: "",
+    ubicacion: "",
+    url,
+  };
+}
+
 // ======================
-// 🌎 SCRAPER SEGURO
+// 🛡️ SCRAPER BLINDADO
 // ======================
 
 async function scrapeMarketplaceData(url: string) {
@@ -60,83 +74,63 @@ async function scrapeMarketplaceData(url: string) {
 
     const run = await apify.actor("apify/facebook-marketplace-scraper").call({
       startUrls: [{ url }],
-      maxItems: 1,
+      maxItems: 5, // 🔥 importante: varios items
     });
 
     const datasetId = run.defaultDatasetId;
-    if (!datasetId) throw new Error("No dataset");
+    if (!datasetId) return emptyResult(url);
 
     const { items } = await apify.dataset(datasetId).listItems();
 
-    const item: any = items?.[0];
-
-    if (!item) {
-      return {
-        titulo: "No detectado",
-        precio: "",
-        precioNum: null,
-        modelo: null,
-        anio: null,
-        descripcion: "",
-        ubicacion: "",
-        url,
-      };
+    if (!items || items.length === 0) {
+      return emptyResult(url);
     }
 
-    // 🔥 FIX CRÍTICO: UNIFICAR TODO EN TEXTO REAL
+    // 🔥 1. seleccionar mejor item disponible
+    const bestItem =
+      items.find((i: any) =>
+        i?.title ||
+        i?.price ||
+        i?.description ||
+        i?.text
+      ) || items[0];
+
+    // 🔥 2. unificar TODO el contenido posible
     const rawText = [
-      item?.title,
-      item?.name,
-      item?.price,
-      item?.description,
-      item?.text,
-      item?.primaryText,
-      item?.body
+      bestItem?.title,
+      bestItem?.name,
+      bestItem?.price,
+      bestItem?.description,
+      bestItem?.text,
+      bestItem?.primaryText,
+      bestItem?.body,
+      JSON.stringify(bestItem) // último fallback extremo
     ]
       .filter(Boolean)
       .join(" ");
 
-    // 🔥 si no hay texto real, no inventar nada
     if (!rawText || rawText.trim().length < 3) {
-      return {
-        titulo: item?.title || "No detectado",
-        precio: "",
-        precioNum: null,
-        modelo: null,
-        anio: null,
-        descripcion: "",
-        ubicacion: "",
-        url,
-      };
+      return emptyResult(url);
     }
 
     return {
-      titulo: item?.title || extractModel(rawText) || "No detectado",
+      titulo: extractModel(rawText) || bestItem?.title || "No detectado",
       precio: rawText,
       precioNum: extractPrice(rawText),
       modelo: extractModel(rawText),
       anio: extractYear(rawText),
-      descripcion: item?.description || "",
-      ubicacion: item?.location || "",
+      descripcion: bestItem?.description || "",
+      ubicacion: bestItem?.location || "",
       url,
     };
 
   } catch {
-    return {
-      titulo: "No detectado",
-      precio: "",
-      precioNum: null,
-      modelo: null,
-      anio: null,
-      descripcion: "",
-      ubicacion: "",
-      url,
-    };
+    return emptyResult(url);
   }
 }
 
 // ======================
-// 📊 MERCADO
+// 📊 MERCADO BLINDADO
 // ======================
 
 async function scrapeMarketComparison(url: string) {
@@ -161,7 +155,9 @@ async function scrapeMarketComparison(url: string) {
           item?.price,
           item?.title,
           item?.description
-        ].filter(Boolean).join(" ");
+        ]
+          .filter(Boolean)
+          .join(" ");
 
         return extractPrice(raw);
       })
@@ -173,7 +169,7 @@ async function scrapeMarketComparison(url: string) {
 }
 
 // ======================
-// 🚀 API
+// 🚀 API PRINCIPAL
 // ======================
 
 export async function POST(request: Request) {
@@ -198,11 +194,12 @@ export async function POST(request: Request) {
         {
           role: "system",
           content: `
-Eres un analista de autos en Chile.
+Eres un analista profesional de autos en Chile.
 
 REGLAS:
 - NO inventes datos
 - NO inventes riesgos
+- NO inventes problemas legales
 - Si falta info → "No disponible"
 
 FORMATO:
@@ -214,18 +211,18 @@ FORMATO:
 📉 PRECIO JUSTO COMPRA
 ⚖️ DIFERENCIA %
 🎯 GANANCIA
-⚠️ RIESGOS (solo si existen)
+⚠️ RIESGOS (solo si existen datos reales)
 🏁 VEREDICTO
 `
         },
         {
           role: "user",
           content: `
-DATOS REALES:
+DATOS REALES DEL VEHÍCULO:
 
 ${JSON.stringify(carData, null, 2)}
 
-📊 MERCADO:
+📊 PROMEDIO MERCADO:
 ${avgMarket ?? "No disponible"}
 `
         }
