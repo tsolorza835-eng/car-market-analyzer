@@ -73,10 +73,9 @@ export async function POST(request: Request) {
 Eres un experto en autos en Chile.
 
 OBLIGATORIO:
-- Debes identificar SOLO el MODELO del vehículo.
-- No incluyas marca ni año.
-- Si no es claro, infiérelo.
-- Responde así:
+- Identifica SOLO el MODELO del vehículo.
+- Si no es claro, infiere el modelo más probable.
+- Responde SOLO así:
 
 MODELO: Corolla
 `,
@@ -92,21 +91,24 @@ MODELO: Corolla
     const analysis =
       completion.choices[0]?.message?.content || "";
 
-    // 🔥 EXTRAER SOLO MODELO
+    // 🔥 EXTRAER MODELO LIMPIO
     const modeloDetectado =
-      analysis.match(/MODELO[:\- ]*(.*)/i)?.[1]?.trim() || "";
+      analysis.match(/MODELO[:\- ]*(.*)/i)?.[1]?.trim() ||
+      fullData.modelo ||
+      fullData.marca ||
+      "";
 
     let finalAnalysis = analysis;
 
     if (patente) {
       finalAnalysis += `
 
-## 🔗 Enlaces útiles
+## 🔗 Enlaces
 
 🔍 Alerta Vehículo:
 https://alertavehiculo.cl
 
-🛡️ AACH - CONREMATE:
+🛡️ AACH:
 https://www.aach.cl/CONREMATE/
 `;
     }
