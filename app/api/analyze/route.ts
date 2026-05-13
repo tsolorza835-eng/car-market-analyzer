@@ -7,14 +7,13 @@ const client = new OpenAI({
 });
 
 // ======================
-// 🧱 HELPERS BASE
+// 🧱 HELPERS
 // ======================
 
 function cleanText(input: any): string {
   return input ? String(input) : "";
 }
 
-// 💰 precio robusto
 function extractPrice(input: any): number | null {
   const text = cleanText(input);
   if (!text) return null;
@@ -29,7 +28,6 @@ function extractPrice(input: any): number | null {
   return numbers.length ? Math.min(...numbers) : null;
 }
 
-// 🚗 modelo
 function extractModel(text: string): string | null {
   const t = cleanText(text);
 
@@ -40,7 +38,6 @@ function extractModel(text: string): string | null {
   return match ? match[0] : null;
 }
 
-// 📅 año
 function extractYear(text: string): number | null {
   const t = cleanText(text);
 
@@ -48,7 +45,6 @@ function extractYear(text: string): number | null {
   return match ? parseInt(match[0]) : null;
 }
 
-// 🧱 fallback vacío seguro
 function emptyResult(url: string) {
   return {
     titulo: "No detectado",
@@ -63,7 +59,7 @@ function emptyResult(url: string) {
 }
 
 // ======================
-// 🛡️ SCRAPER BLINDADO
+// 🚗 SCRAPER POST INDIVIDUAL (BLINDADO)
 // ======================
 
 async function scrapeMarketplaceData(url: string) {
@@ -74,7 +70,7 @@ async function scrapeMarketplaceData(url: string) {
 
     const run = await apify.actor("apify/facebook-marketplace-scraper").call({
       startUrls: [{ url }],
-      maxItems: 5, // 🔥 importante: varios items
+      maxItems: 5,
     });
 
     const datasetId = run.defaultDatasetId;
@@ -82,20 +78,13 @@ async function scrapeMarketplaceData(url: string) {
 
     const { items } = await apify.dataset(datasetId).listItems();
 
-    if (!items || items.length === 0) {
-      return emptyResult(url);
-    }
+    if (!items || items.length === 0) return emptyResult(url);
 
-    // 🔥 1. seleccionar mejor item disponible
     const bestItem =
       items.find((i: any) =>
-        i?.title ||
-        i?.price ||
-        i?.description ||
-        i?.text
+        i?.title || i?.price || i?.description || i?.text
       ) || items[0];
 
-    // 🔥 2. unificar TODO el contenido posible
     const rawText = [
       bestItem?.title,
       bestItem?.name,
@@ -104,7 +93,7 @@ async function scrapeMarketplaceData(url: string) {
       bestItem?.text,
       bestItem?.primaryText,
       bestItem?.body,
-      JSON.stringify(bestItem) // último fallback extremo
+      JSON.stringify(bestItem)
     ]
       .filter(Boolean)
       .join(" ");
@@ -130,18 +119,22 @@ async function scrapeMarketplaceData(url: string) {
 }
 
 // ======================
-// 📊 MERCADO BLINDADO
+// 📊 MERCADO REAL (FIX IMPORTANTE)
 // ======================
 
-async function scrapeMarketComparison(url: string) {
+async function scrapeMarketComparisonByModel(model: string | null, year: number | null) {
   try {
+    if (!model) return [];
+
     const apify = new ApifyClient({
       token: process.env.APIFY_TOKEN,
     });
 
+    const searchQuery = `${model} ${year ?? ""} chile`;
+
     const run = await apify.actor("apify/facebook-marketplace-scraper").call({
-      startUrls: [{ url }],
-      maxItems: 80,
+      search: searchQuery,
+      maxItems: 50,
     });
 
     const datasetId = run.defaultDatasetId;
@@ -174,10 +167,16 @@ async function scrapeMarketComparison(url: string) {
 
 export async function POST(request: Request) {
   try {
-    const { url, patente } = await request.json();
+    const { url } = await request.json();
 
+    // 🚗 1. POST INDIVIDUAL
     const carData = await scrapeMarketplaceData(url);
-    const marketData = await scrapeMarketComparison(url);
+
+    // 📊 2. MERCADO REAL (POR MODELO, NO POR URL)
+    const marketData = await scrapeMarketComparisonByModel(
+      carData.modelo,
+      carData.anio
+    );
 
     const prices = marketData.filter(
       (p): p is number => typeof p === "number"
@@ -188,18 +187,18 @@ export async function POST(request: Request) {
         ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length)
         : null;
 
+    // 🤖 3. IA ANALYST
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
           content: `
-Eres un analista profesional de autos en Chile.
+Eres un analista de autos en Chile.
 
 REGLAS:
 - NO inventes datos
 - NO inventes riesgos
-- NO inventes problemas legales
 - Si falta info → "No disponible"
 
 FORMATO:
@@ -218,11 +217,11 @@ FORMATO:
         {
           role: "user",
           content: `
-DATOS REALES DEL VEHÍCULO:
+DATOS VEHÍCULO:
 
 ${JSON.stringify(carData, null, 2)}
 
-📊 PROMEDIO MERCADO:
+📊 MERCADO:
 ${avgMarket ?? "No disponible"}
 `
         }
@@ -230,13 +229,10 @@ ${avgMarket ?? "No disponible"}
       temperature: 0.2,
     });
 
-    const analysis =
-      completion.choices[0]?.message?.content || "";
-
     return NextResponse.json({
       success: true,
       data: carData,
-      analysis,
+      analysis: completion.choices[0]?.message?.content || "",
       modeloDetectado: carData.modelo,
       anioDetectado: carData.anio,
       avgMarketPrice: avgMarket,
