@@ -4,25 +4,17 @@ import { useState } from "react";
 
 export default function Home() {
   const [url, setUrl] = useState("");
-  const [resultado, setResultado] = useState("");
-  const [cargando, setCargando] = useState(false);
+  const [result, setResult] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  async function analizarAuto() {
-    const cleanUrl = url.trim();
-
-    if (
-      !cleanUrl ||
-      !(
-        cleanUrl.includes("facebook.com") ||
-        cleanUrl.includes("fb.com")
-      )
-    ) {
-      setResultado("❌ Debes proporcionar un enlace válido.");
+  const handleAnalyze = async () => {
+    if (!url.trim()) {
+      setResult("⚠️ Por favor ingresa un enlace.");
       return;
     }
 
-    setCargando(true);
-    setResultado("");
+    setLoading(true);
+    setResult("");
 
     try {
       const response = await fetch("/api/analyze", {
@@ -30,58 +22,121 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          url: cleanUrl,
-        }),
+        body: JSON.stringify({ url }),
       });
 
       const data = await response.json();
 
-      if (!response.ok) {
-        setResultado(`❌ ${data.error || "Ocurrió un error."}`);
+      // Mostrar el análisis si la API responde correctamente
+      if (data.success && data.analysis) {
+        setResult(data.analysis);
       } else {
-        setResultado(data.raw);
+        // Mostrar el error devuelto por la API o un mensaje genérico
+        setResult(data.error || "❌ Error de conexión.");
       }
     } catch (error) {
-      setResultado("❌ Error de conexión.");
+      setResult("❌ Error de conexión.");
     } finally {
-      setCargando(false);
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <main className="min-h-screen bg-black text-white flex items-center justify-center p-6">
-      <div className="bg-zinc-900 border border-zinc-800 shadow-2xl rounded-3xl p-8 max-w-3xl w-full">
-        <h1 className="text-4xl font-bold text-center mb-4 text-white">
+    <main
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: "#000000",
+        color: "#ffffff",
+        fontFamily: "Arial, Helvetica, sans-serif",
+        padding: "20px",
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: "#1f1f1f",
+          padding: "40px",
+          borderRadius: "20px",
+          width: "100%",
+          maxWidth: "700px",
+          boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
+        }}
+      >
+        <h1
+          style={{
+            textAlign: "center",
+            fontSize: "3rem",
+            marginBottom: "20px",
+          }}
+        >
           🚗 Analizador de Precios de Autos
         </h1>
 
-        <p className="text-zinc-400 text-center mb-6">
-          Pega un enlace de Facebook Marketplace y descubre si el auto está
-          bajo o sobre el precio de mercado.
+        <p
+          style={{
+            textAlign: "center",
+            color: "#cccccc",
+            marginBottom: "30px",
+            fontSize: "1.1rem",
+            lineHeight: "1.6",
+          }}
+        >
+          Pega un enlace de Facebook Marketplace y descubre si el auto está bajo
+          o sobre el precio de mercado.
         </p>
 
         <input
           type="text"
+          placeholder="Pega aquí el enlace del vehículo"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="Pega aquí el enlace del vehículo"
-          className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-4 mb-4 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          style={{
+            width: "100%",
+            padding: "16px",
+            fontSize: "1rem",
+            borderRadius: "10px",
+            border: "1px solid #444",
+            backgroundColor: "#2c2c2c",
+            color: "#ffffff",
+            marginBottom: "20px",
+            boxSizing: "border-box",
+          }}
         />
 
         <button
-          onClick={analizarAuto}
-          disabled={cargando}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold py-4 px-6 rounded-xl transition duration-200"
+          onClick={handleAnalyze}
+          disabled={loading}
+          style={{
+            width: "100%",
+            padding: "16px",
+            fontSize: "1.1rem",
+            fontWeight: "bold",
+            borderRadius: "10px",
+            border: "none",
+            backgroundColor: loading ? "#666666" : "#0070f3",
+            color: "#ffffff",
+            cursor: loading ? "not-allowed" : "pointer",
+            marginBottom: "25px",
+          }}
         >
-          {cargando ? "Analizando..." : "Chúpalo José Ignacio"}
+          {loading ? "Analizando..." : "Analizar Precio"}
         </button>
 
-        {resultado && (
-          <div className="mt-8 bg-zinc-800 border border-zinc-700 rounded-2xl p-6">
-            <pre className="whitespace-pre-wrap text-white font-sans leading-7">
-              {resultado}
-            </pre>
+        {result && (
+          <div
+            style={{
+              backgroundColor: "#2c2c2c",
+              padding: "20px",
+              borderRadius: "12px",
+              whiteSpace: "pre-wrap",
+              lineHeight: "1.7",
+              color: "#ffffff",
+              border: "1px solid #444",
+            }}
+          >
+            {result}
           </div>
         )}
       </div>
