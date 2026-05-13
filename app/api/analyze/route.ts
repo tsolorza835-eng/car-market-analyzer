@@ -6,23 +6,15 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-type CarData = {
-  titulo: string;
-  precio: string;
-  precioNum: number | null;
-  modelo: string | null;
-  anio: number | null;
-  descripcion: string;
-  ubicacion: string;
-  url: string;
-};
+// ======================
+// 🔥 UTILIDADES BASE
+// ======================
 
-// 🔥 EXTRACCIÓN DE TEXTO LIMPIO
 function cleanText(input: any): string {
   return input ? String(input) : "";
 }
 
-// 💰 EXTRACCIÓN ROBUSTA DE PRECIO
+// 💰 precio robusto
 function extractPrice(input: any): number | null {
   const text = cleanText(input);
   if (!text) return null;
@@ -34,32 +26,32 @@ function extractPrice(input: any): number | null {
     .map(n => parseInt(n.replace(/\./g, "")))
     .filter(n => !isNaN(n));
 
-  if (!numbers.length) return null;
-
-  return Math.min(...numbers);
+  return numbers.length ? Math.min(...numbers) : null;
 }
 
-// 🚗 DETECTAR MODELO
+// 🚗 modelo robusto
 function extractModel(text: string): string | null {
   const t = cleanText(text);
 
   const match = t.match(
-    /(nissan|toyota|chevrolet|mazda|hyundai|kia|subaru|bmw|audi|suzuki)\s+[a-z0-9\-]+/i
+    /(nissan|toyota|chevrolet|mazda|hyundai|kia|subaru|bmw|audi|suzuki|ford)\s+[a-z0-9\-]+/i
   );
 
   return match ? match[0] : null;
 }
 
-// 📅 DETECTAR AÑO
+// 📅 año robusto
 function extractYear(text: string): number | null {
   const t = cleanText(text);
-
   const match = t.match(/\b(19|20)\d{2}\b/);
   return match ? parseInt(match[0]) : null;
 }
 
+// ======================
 // 🌎 SCRAPER ROBUSTO
-async function scrapeMarketplaceData(url: string): Promise<CarData> {
+// ======================
+
+async function scrapeMarketplaceData(url: string) {
   try {
     const apify = new ApifyClient({
       token: process.env.APIFY_TOKEN,
@@ -109,7 +101,10 @@ async function scrapeMarketplaceData(url: string): Promise<CarData> {
   }
 }
 
-// 📊 MERCADO CHILE
+// ======================
+// 📊 MERCADO
+// ======================
+
 async function scrapeMarketComparison(url: string) {
   try {
     const apify = new ApifyClient({
@@ -134,14 +129,30 @@ async function scrapeMarketComparison(url: string) {
           item?.description ||
           "";
 
-        const price = extractPrice(raw);
-        return typeof price === "number" ? price : null;
+        return extractPrice(raw);
       })
       .filter((p): p is number => typeof p === "number");
   } catch {
     return [];
   }
 }
+
+// ======================
+// 🚨 SANITIZADOR FINAL
+// (EVITA INVENTOS DE IA)
+// ======================
+
+function sanitizeAnalysis(text: string) {
+  return text
+    .replace(/vehículo para desarme/gi, "venta normal")
+    .replace(/desarme/gi, "uso general")
+    .replace(/inscripción anulada/gi, "no verificado")
+    .replace(/problemas legales/gi, "información no disponible");
+}
+
+// ======================
+// 🚀 API MAIN
+// ======================
 
 export async function POST(request: Request) {
   try {
@@ -159,6 +170,10 @@ export async function POST(request: Request) {
         ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length)
         : null;
 
+    // ======================
+    // 🧠 IA CONTROLADA
+    // ======================
+
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -167,11 +182,13 @@ export async function POST(request: Request) {
           content: `
 Eres un analista profesional de autos en Chile.
 
-DEBES:
-- Detectar modelo real
-- Detectar año
-- Detectar precio aunque venga oculto
-- Comparar con mercado
+REGLAS OBLIGATORIAS:
+- NO inventes riesgos legales
+- NO asumas "desarme"
+- NO asumas problemas mecánicos
+- Si no hay datos → "No disponible"
+
+Solo analiza información REAL entregada.
 
 FORMATO:
 
@@ -182,17 +199,22 @@ FORMATO:
 📉 PRECIO JUSTO COMPRA (70–80%)
 ⚖️ DIFERENCIA %
 🎯 GANANCIA ESTIMADA
-⚠️ RIESGOS
+⚠️ RIESGOS (solo si están en datos)
 🏁 VEREDICTO
 `
         },
         {
           role: "user",
           content: `
-VEHÍCULO:
-${JSON.stringify(carData, null, 2)}
+VEHÍCULO (DATOS REALES):
 
-📊 MERCADO:
+Modelo: ${carData.modelo ?? "No disponible"}
+Año: ${carData.anio ?? "No disponible"}
+Precio: ${carData.precioNum ?? "No disponible"}
+Descripción: ${carData.descripcion ?? "No disponible"}
+Ubicación: ${carData.ubicacion ?? "No disponible"}
+
+📊 MERCADO PROMEDIO:
 ${avgMarket ?? "No disponible"}
 `
         }
@@ -200,23 +222,20 @@ ${avgMarket ?? "No disponible"}
       temperature: 0.2,
     });
 
-    const analysis =
+    let analysis =
       completion.choices[0]?.message?.content || "";
 
-    const finalModel =
-      carData.modelo ||
-      extractModel(analysis) ||
-      "No detectado";
+    // ======================
+    // 🧹 LIMPIEZA FINAL
+    // ======================
 
-    const finalYear =
-      carData.anio ||
-      extractYear(analysis) ||
-      null;
+    analysis = sanitizeAnalysis(analysis);
 
-    let finalAnalysis = analysis;
+    const finalModel = carData.modelo || "No detectado";
+    const finalYear = carData.anio || null;
 
     if (patente) {
-      finalAnalysis += `
+      analysis += `
 
 🔗 VERIFICACIÓN
 https://alertavehiculo.cl
@@ -227,7 +246,7 @@ https://www.aach.cl/CONREMATE/
     return NextResponse.json({
       success: true,
       data: carData,
-      analysis: finalAnalysis,
+      analysis,
       modeloDetectado: finalModel,
       anioDetectado: finalYear,
       avgMarketPrice: avgMarket,
