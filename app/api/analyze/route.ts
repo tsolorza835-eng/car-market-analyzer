@@ -6,6 +6,16 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// 🔥 extraer precio real desde texto
+function extractPrice(price: any): number | null {
+  if (!price) return null;
+
+  const cleaned = String(price).replace(/[^0-9]/g, "");
+  const num = parseInt(cleaned);
+
+  return isNaN(num) ? null : num;
+}
+
 async function scrapeMarketplaceData(url: string) {
   try {
     const apify = new ApifyClient({
@@ -25,35 +35,33 @@ async function scrapeMarketplaceData(url: string) {
 
     return {
       titulo: item.title || "",
-      precio: item.price || "No indicado",
+      precio: item.price || "",
+      precioNum: extractPrice(item.price),
       descripcion: item.description || "",
       ubicacion: item.location || "",
       kilometraje: item.mileage || "",
       anio: item.year || "",
       marca: item.make || "",
       modelo: item.model || "",
-      combustible: item.fuelType || "",
-      transmision: item.transmission || "",
       url,
     };
   } catch {
     return {
       titulo: "",
-      precio: "No indicado",
+      precio: "",
+      precioNum: null,
       descripcion: "",
       ubicacion: "",
       kilometraje: "",
       anio: "",
       marca: "",
       modelo: "",
-      combustible: "",
-      transmision: "",
       url,
     };
   }
 }
 
-// 🔥 DOBLE MERCADO: general + concepción
+// 🌎 MERCADO GENERAL FACEBOOK CHILE
 async function scrapeMarketComparison(url: string) {
   try {
     const apify = new ApifyClient({
@@ -66,50 +74,17 @@ async function scrapeMarketComparison(url: string) {
     });
 
     const datasetId = run.defaultDatasetId;
-    if (!datasetId) return { general: [], concepcion: [] };
+    if (!datasetId) return [];
 
     const { items } = await apify.dataset(datasetId).listItems();
 
-    if (!items || items.length === 0) {
-      return { general: [], concepcion: [] };
-    }
-
-    // 🌎 MERCADO GENERAL (FACEBOOK COMPLETO)
-    const general = items.slice(0, 30).map((item: any) => ({
-      titulo: item.title || "",
-      precio: item.price || "No indicado",
-      kilometraje: item.mileage || "",
-      marca: item.make || "",
-      modelo: item.model || "",
-      año: item.year || "",
-      ubicacion: item.location || "",
-    }));
-
-    // 📍 MERCADO CONCEPCIÓN (VIII REGIÓN)
-    const concepcionFiltered = items.filter((item: any) => {
-      const loc = item.location?.toLowerCase() || "";
-      return (
-        loc.includes("concepcion") ||
-        loc.includes("concepción") ||
-        loc.includes("biobio") ||
-        loc.includes("biobío")
-      );
-    });
-
-    const concepcion = concepcionFiltered.slice(0, 20).map((item: any) => ({
-      titulo: item.title || "",
-      precio: item.price || "No indicado",
-      kilometraje: item.mileage || "",
-      marca: item.make || "",
-      modelo: item.model || "",
-      año: item.year || "",
-      ubicacion: item.location || "",
-    }));
-
-    return { general, concepcion };
-
+    return items
+      .map((item: any) => ({
+        precio: extractPrice(item.price),
+      }))
+      .filter((x: any) => x.precio !== null);
   } catch {
-    return { general: [], concepcion: [] };
+    return [];
   }
 }
 
@@ -118,13 +93,20 @@ export async function POST(request: Request) {
     const { url, patente } = await request.json();
 
     const carData = await scrapeMarketplaceData(url);
-
     const marketData = await scrapeMarketComparison(url);
 
     const fullData = {
       ...carData,
       patente: patente || "No proporcionada",
     };
+
+    // 📊 PROMEDIO MERCADO CHILE
+    const prices = marketData.map((x) => x.precio);
+
+    const avgMarket =
+      prices.length > 0
+        ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length)
+        : null;
 
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
@@ -136,50 +118,31 @@ Eres un experto en compra y venta de autos en Chile.
 
 OBLIGATORIO:
 
-1. Analizar el vehículo principal
-2. Comparar con MERCADO GENERAL de Facebook Marketplace
-3. Comparar con MERCADO CONCEPCIÓN (VIII Región)
-4. Mostrar diferencias entre ambos mercados
-5. Calcular precio máximo para 20–30% ganancia
+- Detectar precio del post
+- Comparar con promedio REAL del mercado chileno (Facebook Marketplace)
+- Calcular diferencia en porcentaje
+- Estimar precio máximo para ganar 20–30%
 
-FORMATO CON EMOJIS:
+FORMATO:
 
 🚗 MODELO: ...
 📅 AÑO: ...
-📊 KILOMETRAJE: ...
 💰 PRECIO PUBLICACIÓN: ...
-
-🌎 MERCADO FACEBOOK (GENERAL):
-- promedio
-- rango
-
-📍 MERCADO CONCEPCIÓN (VIII REGIÓN):
-- promedio
-- rango
-
-⚖️ COMPARACIÓN ENTRE MERCADOS:
-...
-
-🎯 PRECIO MÁXIMO COMPRA:
-...
-
-⚠️ RIESGOS:
-...
-
-🏁 VEREDICTO:
+📊 PROMEDIO MERCADO CHILE: ...
+⚖️ DIFERENCIA (%): ...
+🎯 PRECIO MÁXIMO COMPRA: ...
+⚠️ RIESGOS: ...
+🏁 VEREDICTO: ...
 `
         },
         {
           role: "user",
           content: `
-VEHÍCULO PRINCIPAL:
+VEHÍCULO:
 ${JSON.stringify(fullData, null, 2)}
 
-🌎 MERCADO GENERAL FACEBOOK:
-${JSON.stringify(marketData.general, null, 2)}
-
-📍 MERCADO CONCEPCIÓN (VIII REGIÓN):
-${JSON.stringify(marketData.concepcion, null, 2)}
+📊 PROMEDIO MERCADO CHILE:
+${avgMarket ?? "No disponible"}
 `
         }
       ],
@@ -200,12 +163,12 @@ ${JSON.stringify(marketData.concepcion, null, 2)}
     if (patente) {
       finalAnalysis += `
 
-🔗 ENLACES DE VERIFICACIÓN
+🔗 ENLACES
 
 🔍 Alerta Vehículo:
 https://alertavehiculo.cl
 
-🛡️ AACH - CONREMATE:
+🛡️ AACH:
 https://www.aach.cl/CONREMATE/
 `;
     }
@@ -215,13 +178,13 @@ https://www.aach.cl/CONREMATE/
       data: fullData,
       analysis: finalAnalysis,
       modeloDetectado,
-      marketGeneralCount: marketData.general.length,
-      marketConcepcionCount: marketData.concepcion.length
+      avgMarketPrice: avgMarket,
+      marketCount: marketData.length,
     });
 
   } catch (error) {
     return NextResponse.json(
-      { success: false, error: "Error interno" },
+      { success: false, error: "Error interno del servidor" },
       { status: 500 }
     );
   }
