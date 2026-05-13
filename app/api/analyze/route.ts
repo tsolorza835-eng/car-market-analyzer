@@ -81,16 +81,10 @@ export async function POST(request: Request) {
 
     const carData = await scrapeMarketplaceData(url);
 
-    // Incorporar la patente ingresada manualmente
     const fullData = {
       ...carData,
       patente: patente || "No proporcionada",
     };
-
-    console.log(
-      "Datos enviados a OpenAI:",
-      JSON.stringify(fullData, null, 2)
-    );
 
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
@@ -102,33 +96,31 @@ Eres un experto profesional en compra y venta de autos usados en Chile.
 
 Tu cliente compra vehículos para revenderlos y necesita saber exactamente cuánto debe pagar como máximo para obtener una utilidad mínima del 20% y una utilidad ideal del 30%.
 
-Si se proporciona una patente, debes usarla como referencia para contrastar la información del anuncio y evaluar:
-- Vigencia de revisión técnica (PRT)
-- Multas y observaciones
-- Prendas y limitaciones al dominio
-- TAG y deudas asociadas
-- Coherencia entre los antecedentes y la información publicada
+Si se proporciona una patente, debes utilizarla como referencia adicional para contrastar la información del vehículo y orientar las verificaciones legales y técnicas.
 
 OBJETIVO PRINCIPAL:
 Determinar un PRECIO MÁXIMO DE COMPRA concreto y numérico.
 
-REGLAS:
+REGLAS OBLIGATORIAS:
 - Nunca digas que faltan datos o que no es posible analizar.
 - Siempre entrega montos en pesos chilenos (CLP).
 - Usa toda la información disponible.
 - Si faltan datos, realiza estimaciones razonables.
 
 METODOLOGÍA:
-- Valor de mercado estimado = precio probable de reventa.
+- Valor de mercado estimado = precio probable de reventa en Chile.
 - Precio máximo conservador = valor de mercado × 0.70
 - Precio máximo recomendado = valor de mercado × 0.75
 - Precio máximo agresivo = valor de mercado × 0.80
+
+IMPORTANTE:
+La prioridad absoluta es indicar con claridad cuánto debe pagarse como máximo para comprar el vehículo y revenderlo con rentabilidad.
           `,
         },
         {
           role: "user",
           content: `
-Analiza el siguiente vehículo.
+Analiza el siguiente vehículo publicado en Facebook Marketplace.
 
 DATOS DISPONIBLES:
 ${JSON.stringify(fullData, null, 2)}
@@ -145,10 +137,23 @@ FORMATO OBLIGATORIO DE RESPUESTA:
 💵 Utilidad potencial estimada:
 📊 Evaluación del negocio:
 🔍 Coherencia del kilometraje:
+
 📋 Revisión Técnica (PRT):
+- Indica si, según el año del vehículo, es altamente probable que deba contar con revisión técnica vigente.
+- Estima el riesgo económico si la revisión técnica estuviera vencida o rechazada.
+- Menciona los costos aproximados de regularización en Chile.
+- Señala si este factor afecta el precio máximo de compra recomendado.
+
 🚦 Multas y observaciones:
+- Indica qué riesgos legales deben revisarse con la patente.
+- Explica cómo podrían afectar el negocio.
+
 🔒 Prendas y limitaciones al dominio:
+- Evalúa el impacto económico y legal si existieran.
+
 🛣️ TAG y otras deudas:
+- Explica cómo podrían afectar la rentabilidad.
+
 🔧 Posibles costos y reparaciones:
 🤝 Estrategia de negociación sugerida:
 ⚠️ Señales de alerta:
