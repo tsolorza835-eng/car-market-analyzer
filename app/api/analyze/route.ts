@@ -70,14 +70,30 @@ export async function POST(request: Request) {
         {
           role: "system",
           content: `
-Eres un experto en autos en Chile.
+Eres un experto en compra y venta de autos en Chile.
 
 OBLIGATORIO:
-- Identifica SOLO el MODELO del vehículo.
-- Si no es claro, infiere el modelo más probable.
-- Responde SOLO así:
+Debes entregar un análisis COMPLETO para reventa.
 
-MODELO: Corolla
+Incluye siempre:
+
+- MODELO
+- AÑO
+- KILOMETRAJE estimado si no viene
+- VALOR DE MERCADO en Chile (Facebook Marketplace)
+- PRECIO MÁXIMO DE COMPRA para ganar 20% a 30%
+- RIESGOS (multas, remate, fallas, documentos)
+- VEREDICTO FINAL (buena o mala compra)
+
+FORMATO EXACTO:
+
+MODELO: ...
+AÑO: ...
+KILOMETRAJE: ...
+VALOR MERCADO: ...
+PRECIO MÁXIMO COMPRA: ...
+RIESGOS: ...
+VEREDICTO: ...
 `,
         },
         {
@@ -91,7 +107,6 @@ MODELO: Corolla
     const analysis =
       completion.choices[0]?.message?.content || "";
 
-    // 🔥 EXTRAER MODELO LIMPIO
     const modeloDetectado =
       analysis.match(/MODELO[:\- ]*(.*)/i)?.[1]?.trim() ||
       fullData.modelo ||
@@ -103,12 +118,12 @@ MODELO: Corolla
     if (patente) {
       finalAnalysis += `
 
-## 🔗 Enlaces
+## 🔗 Enlaces de verificación
 
 🔍 Alerta Vehículo:
 https://alertavehiculo.cl
 
-🛡️ AACH:
+🛡️ AACH - CONREMATE:
 https://www.aach.cl/CONREMATE/
 `;
     }
