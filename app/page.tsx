@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 export default function Home() {
   const [url, setUrl] = useState("");
+  const [patente, setPatente] = useState("");
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
   const [dots, setDots] = useState(".");
@@ -40,7 +41,10 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({
+          url,
+          patente: patente.trim().toUpperCase(),
+        }),
       });
 
       const data = await response.json();
@@ -126,11 +130,11 @@ export default function Home() {
             lineHeight: "1.6",
           }}
         >
-          Pega un enlace de Facebook Marketplace y descubre si el auto está bajo
-          o sobre el precio de mercado.
+          Pega un enlace de Facebook Marketplace y, si la tienes, ingresa la
+          patente para obtener un análisis más completo.
         </p>
 
-        {/* INPUT */}
+        {/* INPUT URL */}
         <input
           type="text"
           value={url}
@@ -145,6 +149,27 @@ export default function Home() {
             marginBottom: "20px",
             background: "#333",
             color: "white",
+            boxSizing: "border-box",
+          }}
+        />
+
+        {/* INPUT PATENTE */}
+        <input
+          type="text"
+          value={patente}
+          onChange={(e) => setPatente(e.target.value)}
+          placeholder="Patente (opcional)"
+          maxLength={8}
+          style={{
+            width: "100%",
+            padding: "20px",
+            fontSize: "1.4rem",
+            borderRadius: "12px",
+            border: "1px solid #555",
+            marginBottom: "20px",
+            background: "#333",
+            color: "white",
+            textTransform: "uppercase",
             boxSizing: "border-box",
           }}
         />

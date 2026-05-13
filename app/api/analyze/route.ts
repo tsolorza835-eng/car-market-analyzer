@@ -67,7 +67,7 @@ async function scrapeMarketplaceData(url: string) {
 
 export async function POST(request: Request) {
   try {
-    const { url } = await request.json();
+    const { url, patente } = await request.json();
 
     if (!url) {
       return NextResponse.json(
@@ -81,6 +81,17 @@ export async function POST(request: Request) {
 
     const carData = await scrapeMarketplaceData(url);
 
+    // Incorporar la patente ingresada manualmente
+    const fullData = {
+      ...carData,
+      patente: patente || "No proporcionada",
+    };
+
+    console.log(
+      "Datos enviados a OpenAI:",
+      JSON.stringify(fullData, null, 2)
+    );
+
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -91,47 +102,41 @@ Eres un experto profesional en compra y venta de autos usados en Chile.
 
 Tu cliente compra vehículos para revenderlos y necesita saber exactamente cuánto debe pagar como máximo para obtener una utilidad mínima del 20% y una utilidad ideal del 30%.
 
-TU OBJETIVO PRINCIPAL:
-Determinar un PRECIO MÁXIMO DE COMPRA concreto y numérico, basado en la información del anuncio y en tu conocimiento del mercado chileno.
+Si se proporciona una patente, debes usarla como referencia para contrastar la información del anuncio y evaluar:
+- Vigencia de revisión técnica (PRT)
+- Multas y observaciones
+- Prendas y limitaciones al dominio
+- TAG y deudas asociadas
+- Coherencia entre los antecedentes y la información publicada
 
-INSTRUCCIONES OBLIGATORIAS:
+OBJETIVO PRINCIPAL:
+Determinar un PRECIO MÁXIMO DE COMPRA concreto y numérico.
 
-1. Nunca digas:
-- "No es posible analizar"
-- "No se dispone de información suficiente"
-- "No se puede determinar"
-- "Faltan datos"
-- "Es difícil estimar"
-
-2. Siempre debes inferir:
-- Marca
-- Modelo
-- Año
-- Tipo de vehículo
-- Valor probable de mercado en Chile
-
-3. Usa toda la información disponible:
-- Título del anuncio
-- Descripción
-- Precio
-- Kilometraje
-- Año
-- Ubicación
-
-4. Aunque falten algunos datos, debes continuar y entregar estimaciones razonables.
-
-5. Todos los montos deben expresarse en pesos chilenos (CLP).
+REGLAS:
+- Nunca digas que faltan datos o que no es posible analizar.
+- Siempre entrega montos en pesos chilenos (CLP).
+- Usa toda la información disponible.
+- Si faltan datos, realiza estimaciones razonables.
 
 METODOLOGÍA:
-
-- Valor de mercado estimado = precio probable de reventa en Chile.
+- Valor de mercado estimado = precio probable de reventa.
 - Precio máximo conservador = valor de mercado × 0.70
 - Precio máximo recomendado = valor de mercado × 0.75
 - Precio máximo agresivo = valor de mercado × 0.80
+          `,
+        },
+        {
+          role: "user",
+          content: `
+Analiza el siguiente vehículo.
+
+DATOS DISPONIBLES:
+${JSON.stringify(fullData, null, 2)}
 
 FORMATO OBLIGATORIO DE RESPUESTA:
 
 🚗 Vehículo identificado:
+🔢 Patente:
 💰 Precio publicado:
 📈 Valor de mercado estimado:
 🎯 Precio máximo conservador:
@@ -140,25 +145,15 @@ FORMATO OBLIGATORIO DE RESPUESTA:
 💵 Utilidad potencial estimada:
 📊 Evaluación del negocio:
 🔍 Coherencia del kilometraje:
-🚨 Riesgo de odómetro adulterado:
-🧾 Revisiones legales sugeridas:
+📋 Revisión Técnica (PRT):
+🚦 Multas y observaciones:
+🔒 Prendas y limitaciones al dominio:
+🛣️ TAG y otras deudas:
 🔧 Posibles costos y reparaciones:
 🤝 Estrategia de negociación sugerida:
 ⚠️ Señales de alerta:
 🏆 Veredicto final:
 📝 Comentarios adicionales:
-
-REGLA FINAL:
-La prioridad absoluta es indicar con claridad cuál es el precio máximo que debe pagarse para comprar el vehículo con fines de reventa.
-          `,
-        },
-        {
-          role: "user",
-          content: `
-Analiza el siguiente vehículo publicado en Facebook Marketplace.
-
-DATOS EXTRAÍDOS:
-${JSON.stringify(carData, null, 2)}
           `,
         },
       ],
@@ -171,7 +166,7 @@ ${JSON.stringify(carData, null, 2)}
 
     return NextResponse.json({
       success: true,
-      data: carData,
+      data: fullData,
       analysis,
     });
   } catch (error) {
