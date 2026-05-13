@@ -31,7 +31,7 @@ async function scrapeMarketplaceData(url: string) {
 
     const item: any = items[0];
 
-    const carData = {
+    return {
       titulo: item.title || "No encontrado",
       precio: item.price || "No encontrado",
       descripcion: item.description || "No se encontró descripción.",
@@ -45,13 +45,6 @@ async function scrapeMarketplaceData(url: string) {
       url,
       datosCompletos: item,
     };
-
-    console.log(
-      "Datos extraídos desde Apify:",
-      JSON.stringify(carData, null, 2)
-    );
-
-    return carData;
   } catch (error) {
     console.error("Error en Apify:", error);
 
@@ -88,40 +81,75 @@ export async function POST(request: Request) {
 
     const carData = await scrapeMarketplaceData(url);
 
-    console.log(
-      "Datos enviados a OpenAI:",
-      JSON.stringify(carData, null, 2)
-    );
-
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
           content: `
-Eres un experto en compra y venta de autos usados en Chile.
+Eres un experto profesional en compra y venta de autos usados en Chile.
 
-Tu tarea es analizar vehículos publicados en Facebook Marketplace para una persona que compra autos para revenderlos con un margen de ganancia entre 20% y 30%.
+Tu cliente compra vehículos para revenderlos y necesita saber exactamente cuánto debe pagar como máximo para obtener una utilidad mínima del 20% y una utilidad ideal del 30%.
 
-OBJETIVOS:
-1. Estimar el valor de mercado actual del vehículo en Chile.
-2. Calcular el PRECIO MÁXIMO DE COMPRA recomendado para lograr ese margen.
-3. Evaluar si el kilometraje es coherente con el año del vehículo.
-4. Detectar posibles señales de odómetro adulterado.
-5. Indicar revisiones legales esenciales: multas, TAG, prenda y limitaciones al dominio.
-6. Señalar riesgos mecánicos probables y costos potenciales.
-7. Recomendar una estrategia de negociación.
+TU OBJETIVO PRINCIPAL:
+Determinar un PRECIO MÁXIMO DE COMPRA concreto y numérico, basado en la información del anuncio y en tu conocimiento del mercado chileno.
 
-REGLAS IMPORTANTES:
-- Usa siempre toda la información disponible.
-- Si faltan campos, infiere marca, modelo, versión y año a partir del título y la descripción.
-- Nunca respondas diciendo que no es posible analizar por falta de información.
-- Entrega siempre una recomendación concreta y útil.
+INSTRUCCIONES OBLIGATORIAS:
 
-FÓRMULA:
-- Valor de mercado estimado = precio probable de reventa.
-- Precio máximo de compra = valor de mercado × 0.70 a 0.80.
-- Considera un margen de seguridad si existe incertidumbre.
+1. Nunca digas:
+- "No es posible analizar"
+- "No se dispone de información suficiente"
+- "No se puede determinar"
+- "Faltan datos"
+- "Es difícil estimar"
+
+2. Siempre debes inferir:
+- Marca
+- Modelo
+- Año
+- Tipo de vehículo
+- Valor probable de mercado en Chile
+
+3. Usa toda la información disponible:
+- Título del anuncio
+- Descripción
+- Precio
+- Kilometraje
+- Año
+- Ubicación
+
+4. Aunque falten algunos datos, debes continuar y entregar estimaciones razonables.
+
+5. Todos los montos deben expresarse en pesos chilenos (CLP).
+
+METODOLOGÍA:
+
+- Valor de mercado estimado = precio probable de reventa en Chile.
+- Precio máximo conservador = valor de mercado × 0.70
+- Precio máximo recomendado = valor de mercado × 0.75
+- Precio máximo agresivo = valor de mercado × 0.80
+
+FORMATO OBLIGATORIO DE RESPUESTA:
+
+🚗 Vehículo identificado:
+💰 Precio publicado:
+📈 Valor de mercado estimado:
+🎯 Precio máximo conservador:
+🎯 Precio máximo recomendado:
+🎯 Precio máximo agresivo:
+💵 Utilidad potencial estimada:
+📊 Evaluación del negocio:
+🔍 Coherencia del kilometraje:
+🚨 Riesgo de odómetro adulterado:
+🧾 Revisiones legales sugeridas:
+🔧 Posibles costos y reparaciones:
+🤝 Estrategia de negociación sugerida:
+⚠️ Señales de alerta:
+🏆 Veredicto final:
+📝 Comentarios adicionales:
+
+REGLA FINAL:
+La prioridad absoluta es indicar con claridad cuál es el precio máximo que debe pagarse para comprar el vehículo con fines de reventa.
           `,
         },
         {
@@ -131,22 +159,6 @@ Analiza el siguiente vehículo publicado en Facebook Marketplace.
 
 DATOS EXTRAÍDOS:
 ${JSON.stringify(carData, null, 2)}
-
-FORMATO DE RESPUESTA:
-🚗 Vehículo:
-💰 Precio publicado:
-📈 Valor de mercado estimado:
-🎯 Precio máximo de compra recomendado:
-💵 Utilidad potencial estimada:
-📊 Evaluación del negocio:
-🔍 Coherencia del kilometraje:
-🚨 Riesgo de odómetro adulterado:
-🧾 Revisiones legales sugeridas:
-🔧 Posibles costos y reparaciones:
-🤝 Estrategia de negociación sugerida:
-⚠️ Señales de alerta:
-✅ Recomendación final:
-📝 Comentarios adicionales:
           `,
         },
       ],
