@@ -86,93 +86,54 @@ export async function POST(request: Request) {
       patente: patente || "No proporcionada",
     };
 
-    // Enlaces útiles si se ingresó patente
-    const linksUtiles =
-      patente && patente.trim() !== ""
-        ? `
-
-🔗 ENLACES ÚTILES PARA VERIFICACIÓN:
-
-🔍 Alerta Vehículo:
-https://alertavehiculo.cl
-
-🛡️ AACH - Conoce Tu Vehículo:
-https://www.conocetuvehiculo.cl
-`
-        : "";
-
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
           content: `
-Eres un experto profesional en compra y venta de autos usados en Chile.
-
-Tu cliente compra vehículos para revenderlos y necesita saber exactamente cuánto debe pagar como máximo para obtener una utilidad mínima del 20% y una utilidad ideal del 30%.
-
-Si se proporciona una patente, debes utilizarla como referencia adicional para orientar la revisión de antecedentes, multas y coherencia del kilometraje.
-
-OBJETIVO PRINCIPAL:
-Determinar un PRECIO MÁXIMO DE COMPRA concreto y numérico.
-
-REGLAS OBLIGATORIAS:
-- Nunca digas que no es posible analizar.
-- Usa toda la información disponible.
-- Si faltan datos, realiza estimaciones razonables.
-- Todos los montos deben expresarse en pesos chilenos (CLP).
-
-METODOLOGÍA:
-- Valor de mercado estimado = precio probable de reventa.
-- Precio máximo conservador = valor de mercado × 0.70
-- Precio máximo recomendado = valor de mercado × 0.75
-- Precio máximo agresivo = valor de mercado × 0.80
-          `,
+Eres un experto en compra y venta de autos usados en Chile.
+Debes determinar cuánto pagar como máximo para revender con utilidad del 20% al 30%.
+Siempre entrega montos en pesos chilenos (CLP).
+Nunca digas que no es posible analizar.
+`,
         },
         {
           role: "user",
           content: `
-Analiza el siguiente vehículo publicado en Facebook Marketplace.
+Analiza el siguiente vehículo:
 
-DATOS DISPONIBLES:
 ${JSON.stringify(fullData, null, 2)}
 
-FORMATO OBLIGATORIO DE RESPUESTA:
-
-🚗 Vehículo identificado:
-🔢 Patente:
-💰 Precio publicado:
-📈 Valor de mercado estimado:
-🎯 Precio máximo conservador:
-🎯 Precio máximo recomendado:
-🎯 Precio máximo agresivo:
-💵 Utilidad potencial estimada:
-📊 Evaluación del negocio:
-🔍 Coherencia del kilometraje:
-📈 Historial de kilometraje (últimos 6 años):
-📋 Revisión Técnica (PRT):
-🚦 Multas y observaciones:
-🔒 Prendas y limitaciones al dominio:
-🛣️ TAG y otras deudas:
-🏷️ Riesgo de vehículo de remate:
-🔧 Posibles costos y reparaciones:
-🤝 Estrategia de negociación sugerida:
-⚠️ Señales de alerta:
-🏆 Veredicto final:
-📝 Comentarios adicionales:
-
-Si se proporcionó patente, agrega al final una sección "🔗 Enlaces útiles para verificación" con los enlaces indicados más abajo.
-
-${linksUtiles}
-          `,
+Incluye:
+- Valor de mercado estimado
+- Precio máximo recomendado
+- Riesgo de remate
+- Multas
+- PRT
+- TAG
+- Señales de alerta
+- Veredicto final
+`,
         },
       ],
       temperature: 0.2,
     });
 
-    const analysis =
+    let analysis =
       completion.choices[0]?.message?.content ||
       "No se pudo generar el análisis.";
+
+    // Agregar enlaces clickeables en Markdown
+    if (patente && patente.trim() !== "") {
+      analysis += `
+
+## 🔗 Enlaces útiles para verificación
+
+- 🔍 [Alerta Vehículo](https://alertavehiculo.cl)
+- 🛡️ [AACH - Conoce Tu Vehículo](https://www.conocetuvehiculo.cl)
+`;
+    }
 
     return NextResponse.json({
       success: true,
