@@ -124,8 +124,10 @@ Incluye:
       completion.choices[0]?.message?.content ||
       "No se pudo generar el análisis.";
 
-    // Enlaces útiles
+    // Enlaces útiles con la patente incorporada
     if (patente && patente.trim() !== "") {
+      const patenteLimpia = patente.trim().toUpperCase();
+
       analysis += `
 
 ## 🔗 Enlaces útiles para verificación
@@ -133,8 +135,8 @@ Incluye:
 🔍 Alerta Vehículo:
 https://alertavehiculo.cl
 
-🛡️ AACH - Asociación de Aseguradores de Chile:
-https://www.aach.cl
+🛡️ AACH - Consulta de remates:
+https://www.aach.cl/CONREMATE/?patente=${patenteLimpia}
 `;
     }
 
