@@ -57,14 +57,17 @@ export default function Home() {
 
       const data = await response.json();
 
-      if (data?.data?.marca || data?.data?.modelo) {
-        setCarModel(
-          `${data?.data?.marca || ""} ${data?.data?.modelo || ""}`.trim()
-        );
-      }
+      if (data.success) {
+        setResult(data.analysis || "");
 
-      if (data.success) setResult(data.analysis);
-      else setResult("Error en análisis");
+        const model =
+          data.modeloDetectado ||
+          data.data?.modelo ||
+          data.data?.marca ||
+          "";
+
+        setCarModel(model.trim());
+      }
     } catch {
       setResult("Error de conexión");
     } finally {
@@ -118,11 +121,11 @@ export default function Home() {
           borderRadius: 20,
         }}
       >
-        {/* TITULO */}
+        {/* TÍTULO LUCAS */}
         <h1
           style={{
             textAlign: "center",
-            fontSize: 40,
+            fontSize: 34,
             marginBottom: 20,
           }}
         >
@@ -136,9 +139,17 @@ export default function Home() {
                   borderRadius: "50%",
                 }}
               />
-              <span>
+
+              <span style={{ fontSize: 22 }}>
                 Señor Lucas está investigando{" "}
-                {carModel ? `tu próximo ${carModel}` : ""}{dots}
+                {carModel ? (
+                  <span style={{ fontWeight: "bold" }}>
+                    el {carModel}
+                  </span>
+                ) : (
+                  "tu próximo auto"
+                )}
+                {dots}
               </span>
             </div>
           ) : (
