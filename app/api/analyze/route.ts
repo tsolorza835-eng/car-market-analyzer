@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { scrapeMarketplace } from "@/lib/scraper";
 
+// ✅ SUPABASE (SOLO VARIABLES SEGURAS DE BACKEND)
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export async function POST(request: Request) {
@@ -17,45 +19,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // 🔥 SCRAPER (robusto)
-    const scrapedData = await fetch(
-      new URL("/api/scraper", request.url),
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
-      }
-    );
+    // 🚀 SCRAPER LOCAL (SIN FETCH INTERNO)
+    const data = await scrapeMarketplace(url);
 
-    // 🔥 NO ROMPER SI NO ES JSON
-    const raw = await scrapedData.text();
-
-    let data;
-    try {
-      data = JSON.parse(raw);
-    } catch (err) {
-      console.error("❌ Scraper no devolvió JSON:", raw);
-
+    if (!data || !data.title) {
       return NextResponse.json(
-        {
-          success: false,
-          error: "Scraper devolvió respuesta inválida",
-        },
+        { success: false, error: "No se pudieron obtener datos del scraper" },
         { status: 500 }
       );
     }
 
-    if (!data?.title && !data?.price) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Scraper no devolvió datos completos",
-        },
-        { status: 500 }
-      );
-    }
-
-    // 🔥 CÁLCULOS SEGUROS
+    // 📊 CÁLCULOS SEGUROS
     const price = Number(data.price) || 0;
     const avgMarket = Number(data.avgMarket) || 0;
 
@@ -68,22 +42,20 @@ export async function POST(request: Request) {
     const maxBuy20 = avgMarket ? Math.round(avgMarket * 0.8) : null;
     const maxBuy30 = avgMarket ? Math.round(avgMarket * 0.7) : null;
 
-    // 🔥 INSERT SUPABASE (seguro)
-    const { error } = await supabase.from("listings").insert([
-      {
-        title: data.title || "Sin título",
-        price: data.price || 0,
-        market_avg: avgMarket,
-        location: data.location || "Concepción",
-        created_at: new Date(),
-      },
-    ]);
+    // 💾 GUARDAR EN SUPABASE
+    const { error } = await supabase.from("listings").insert({
+      title: data.title,
+      price,
+      market_avg: avgMarket,
+      location: data.location || "Concepción",
+      created_at: new Date(),
+    });
 
     if (error) {
-      console.error("Supabase error:", error);
+      console.error("Supabase insert error:", error);
     }
 
-    // 🔥 RESPUESTA FINAL
+    // 📤 RESPUESTA FRONTEND
     return NextResponse.json({
       success: true,
       data: {
@@ -97,14 +69,11 @@ export async function POST(request: Request) {
       },
     });
 
-  } catch (error: any) {
-    console.error("❌ ERROR GENERAL:", error);
+  } catch (error) {
+    console.error("Analyze error:", error);
 
     return NextResponse.json(
-      {
-        success: false,
-        error: "Error interno del servidor",
-      },
+      { success: false, error: "Error interno del servidor" },
       { status: 500 }
     );
   }
