@@ -39,42 +39,34 @@ export default function Home() {
   };
 
   const handleAnalyze = async () => {
-    if (!url.trim()) {
-      alert("Ingresa un link de Facebook Marketplace.");
-      return;
-    }
+    if (!url.trim()) return;
 
     setLoading(true);
     setResult("");
     setCarModel("");
 
     try {
-      const normalizedUrl = normalizeFacebookUrl(url);
-
       const response = await fetch("/api/analyze", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          url: normalizedUrl,
+          url: normalizeFacebookUrl(url),
           patente: patente.trim().toUpperCase(),
         }),
       });
 
       const data = await response.json();
 
-      if (data?.data?.modelo) {
-        setCarModel(`${data.data.marca} ${data.data.modelo}`);
+      if (data?.data?.marca || data?.data?.modelo) {
+        setCarModel(
+          `${data?.data?.marca || ""} ${data?.data?.modelo || ""}`.trim()
+        );
       }
 
-      if (data.success) {
-        setResult(data.analysis || "Sin resultado.");
-      } else {
-        setResult(data.error || "Error.");
-      }
+      if (data.success) setResult(data.analysis);
+      else setResult("Error en análisis");
     } catch {
-      setResult("Error de conexión.");
+      setResult("Error de conexión");
     } finally {
       setLoading(false);
     }
@@ -83,28 +75,23 @@ export default function Home() {
   const renderMarkdown = (text: string) => {
     let html = text;
 
-    // links markdown
     html = html.replace(
       /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
       '<a href="$2" target="_blank" style="color:#4da6ff;text-decoration:underline;font-weight:bold;">$1</a>'
     );
 
-    // encabezados
     html = html
       .replace(/^### (.*)$/gm, "<h3>$1</h3>")
       .replace(/^## (.*)$/gm, "<h2>$1</h2>")
       .replace(/^# (.*)$/gm, "<h1>$1</h1>");
 
-    // negritas
     html = html.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
 
-    // URLs (VERSIÓN SEGURA PARA IPHONE)
     html = html.replace(
       /(https?:\/\/[^\s<"]+)/g,
       '<a href="$1" target="_blank" style="color:#4da6ff;text-decoration:underline;font-weight:bold;">$1</a>'
     );
 
-    // saltos de línea
     html = html.replace(/\n/g, "<br />");
 
     return html;
@@ -119,27 +106,28 @@ export default function Home() {
         alignItems: "center",
         background: "#111",
         color: "white",
-        padding: "20px",
+        padding: 20,
       }}
     >
       <div
         style={{
           width: "100%",
-          maxWidth: "900px",
+          maxWidth: 900,
           background: "#222",
-          padding: "40px",
-          borderRadius: "20px",
+          padding: 40,
+          borderRadius: 20,
         }}
       >
+        {/* TITULO */}
         <h1
           style={{
             textAlign: "center",
-            fontSize: "2.5rem",
-            marginBottom: "20px",
+            fontSize: 40,
+            marginBottom: 20,
           }}
         >
           {loading ? (
-            <>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <img
                 src="/lucas.png"
                 style={{
@@ -148,11 +136,11 @@ export default function Home() {
                   borderRadius: "50%",
                 }}
               />
-              <div>
+              <span>
                 Señor Lucas está investigando{" "}
                 {carModel ? `tu próximo ${carModel}` : ""}{dots}
-              </div>
-            </>
+              </span>
+            </div>
           ) : (
             "🚗 Analizador de Autos"
           )}
