@@ -1,46 +1,30 @@
-import { chromium } from "playwright";
-
-export async function extraerDatosMarketplace(url: string) {
-  const browser = await chromium.launch({
-    headless: true,
-  });
-
-  const page = await browser.newPage({
-    userAgent:
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-  });
-
+export async function scrapeMarketplaceData(url: string) {
   try {
-    console.log("Abriendo:", url);
-
-    // Cargar la página lo más rápido posible
-    await page.goto(url, {
-      waitUntil: "domcontentloaded",
-      timeout: 15000,
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      },
     });
 
-    // Esperar solo 2 segundos
-    await page.waitForTimeout(2000);
+    const html = await response.text();
 
-    // Extraer información
-    const titulo = await page.title();
-    const texto = await page.locator("body").innerText();
-
-    await browser.close();
+    const priceMatch = html.match(/\$[\d\.,]+/);
+    const yearMatch = html.match(/\b(19|20)\d{2}\b/);
+    const kmMatch = html.match(/([\d\.]+)\s*(km|kms|kilómetros)/i);
 
     return {
-      titulo,
-      texto: texto.slice(0, 6000), // Menos texto = menor costo y mayor velocidad
+      price: priceMatch ? priceMatch[0] : "No encontrado",
+      year: yearMatch ? yearMatch[0] : "No encontrado",
+      mileage: kmMatch ? kmMatch[0] : "No encontrado",
+      description: html.substring(0, 5000),
     };
   } catch (error) {
-    console.error("Error al extraer datos de Marketplace:", error);
-
-    await browser.close();
-
     return {
-      titulo: "No se pudo acceder completamente al aviso",
-      texto:
-        "Facebook bloqueó parcialmente el acceso automático. Intenta nuevamente o utiliza otro enlace.",
+      price: "No encontrado",
+      year: "No encontrado",
+      mileage: "No encontrado",
+      description: "No se pudo obtener información del aviso.",
     };
   }
 }
