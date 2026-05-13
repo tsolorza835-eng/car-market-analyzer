@@ -35,6 +35,7 @@ async function scrapeMarketplaceData(url: string) {
       ubicacion: item.location || "No encontrado",
       kilometraje: item.mileage || "No encontrado",
       anio: item.year || "No encontrado",
+      url,
     };
   } catch (error) {
     console.error("Error en Apify:", error);
@@ -47,6 +48,7 @@ async function scrapeMarketplaceData(url: string) {
       ubicacion: "No encontrado",
       kilometraje: "No encontrado",
       anio: "No encontrado",
+      url,
     };
   }
 }
@@ -73,22 +75,30 @@ export async function POST(request: Request) {
         {
           role: "system",
           content:
-            "Eres un experto en compra y venta de autos usados en Chile.",
+            "Eres un experto en compra y venta de autos usados en Chile. Debes entregar un análisis útil incluso si faltan algunos datos del vehículo. Nunca respondas diciendo que no es posible analizar por falta de información. Utiliza toda la información disponible y entrega siempre una estimación razonable.",
         },
         {
           role: "user",
           content: `
-Analiza este vehículo y determina si su precio está bajo, justo o sobre el mercado chileno.
+Analiza este vehículo publicado en Facebook Marketplace.
 
-Datos del vehículo:
+Datos extraídos:
 ${JSON.stringify(carData, null, 2)}
 
-Entrega:
-- Precio estimado de mercado
-- Evaluación del precio
-- Ventajas
-- Riesgos
-- Recomendación final
+Aunque algunos campos puedan decir "No encontrado", debes:
+- Inferir lo que sea posible a partir del título, descripción y URL.
+- Entregar siempre un análisis concreto y útil.
+- Estimar un rango de precio de mercado en Chile.
+- Indicar si parece barato, justo o caro.
+- Señalar riesgos y recomendaciones.
+
+Formato de respuesta:
+🚗 Vehículo:
+💰 Precio estimado de mercado:
+📊 Evaluación:
+📈 Diferencia estimada:
+✅ Recomendación:
+⚠️ Riesgos:
           `,
         },
       ],
