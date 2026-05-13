@@ -18,37 +18,36 @@ async function scrapeMarketplaceData(url: string) {
     });
 
     const datasetId = run.defaultDatasetId;
-
     if (!datasetId) throw new Error("No dataset");
 
     const { items } = await apify.dataset(datasetId).listItems();
     const item: any = items[0];
 
     return {
-      titulo: item.title || "No encontrado",
-      precio: item.price || "No encontrado",
-      descripcion: item.description || "No se encontró descripción.",
-      ubicacion: item.location || "No encontrado",
-      kilometraje: item.mileage || "No encontrado",
-      anio: item.year || "No encontrado",
-      marca: item.make || "No encontrado",
-      modelo: item.model || "No encontrado",
-      combustible: item.fuelType || "No encontrado",
-      transmision: item.transmission || "No encontrado",
+      titulo: item.title || "",
+      precio: item.price || "",
+      descripcion: item.description || "",
+      ubicacion: item.location || "",
+      kilometraje: item.mileage || "",
+      anio: item.year || "",
+      marca: item.make || "",
+      modelo: item.model || "",
+      combustible: item.fuelType || "",
+      transmision: item.transmission || "",
       url,
     };
-  } catch (error) {
+  } catch {
     return {
-      titulo: "No encontrado",
-      precio: "No encontrado",
-      descripcion: "Error scraping",
-      ubicacion: "No encontrado",
-      kilometraje: "No encontrado",
-      anio: "No encontrado",
-      marca: "No encontrado",
-      modelo: "No encontrado",
-      combustible: "No encontrado",
-      transmision: "No encontrado",
+      titulo: "",
+      precio: "",
+      descripcion: "",
+      ubicacion: "",
+      kilometraje: "",
+      anio: "",
+      marca: "",
+      modelo: "",
+      combustible: "",
+      transmision: "",
       url,
     };
   }
@@ -70,44 +69,52 @@ export async function POST(request: Request) {
       messages: [
         {
           role: "system",
-          content:
-            "Eres un experto en compra y venta de autos en Chile. Entrega precio máximo de compra.",
+          content: `
+Eres un experto en autos en Chile.
+
+OBLIGATORIO:
+- Debes identificar SOLO el MODELO del vehículo.
+- No incluyas marca ni año.
+- Si no es claro, infiérelo.
+- Responde así:
+
+MODELO: Corolla
+`,
         },
         {
           role: "user",
           content: JSON.stringify(fullData),
         },
       ],
+      temperature: 0.2,
     });
 
-    let analysis =
-      completion.choices[0]?.message?.content ||
-      "Sin análisis";
+    const analysis =
+      completion.choices[0]?.message?.content || "";
 
-    // 🔗 LINKS
+    // 🔥 EXTRAER SOLO MODELO
+    const modeloDetectado =
+      analysis.match(/MODELO[:\- ]*(.*)/i)?.[1]?.trim() || "";
+
+    let finalAnalysis = analysis;
+
     if (patente) {
-      analysis += `
+      finalAnalysis += `
 
 ## 🔗 Enlaces útiles
 
 🔍 Alerta Vehículo:
 https://alertavehiculo.cl
 
-🛡️ AACH:
+🛡️ AACH - CONREMATE:
 https://www.aach.cl/CONREMATE/
 `;
     }
 
-    // 🔥 MODELO DETECTADO PARA FRONTEND
-    const modeloDetectado =
-      fullData.marca && fullData.modelo
-        ? `${fullData.marca} ${fullData.modelo}`
-        : fullData.modelo;
-
     return NextResponse.json({
       success: true,
       data: fullData,
-      analysis,
+      analysis: finalAnalysis,
       modeloDetectado,
     });
   } catch (error) {
