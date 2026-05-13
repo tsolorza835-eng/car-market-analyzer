@@ -124,7 +124,6 @@ Incluye:
       completion.choices[0]?.message?.content ||
       "No se pudo generar el análisis.";
 
-    // Enlaces útiles con la patente incorporada
     if (patente && patente.trim() !== "") {
       const patenteLimpia = patente.trim().toUpperCase();
 
@@ -132,11 +131,14 @@ Incluye:
 
 ## 🔗 Enlaces útiles para verificación
 
-🔍 Alerta Vehículo:
+🔍 Alerta Vehículo (prueba automática):
+alertavehiculo://buscar?patente=${patenteLimpia}
+
+🌐 Alerta Vehículo (sitio web):
 https://alertavehiculo.cl
 
 🛡️ AACH - Consulta de remates:
-https://www.aach.cl/CONREMATE/?patente=${patenteLimpia}
+https://www.aach.cl/CONREMATE/
 `;
     }
 
