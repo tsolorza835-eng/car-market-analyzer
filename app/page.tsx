@@ -53,11 +53,43 @@ export default function Home() {
       } else {
         setResult(data.error || "Error al analizar.");
       }
-    } catch (error) {
+    } catch {
       setResult("Error de conexión.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const renderMarkdown = (text: string) => {
+    let html = text;
+
+    // 1. Convertir enlaces Markdown [Texto](https://...)
+    html = html.replace(
+      /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:#4da6ff; text-decoration: underline; font-weight: bold;">$1</a>'
+    );
+
+    // 2. Convertir encabezados Markdown
+    html = html
+      .replace(/^### (.*)$/gm, "<h3>$1</h3>")
+      .replace(/^## (.*)$/gm, "<h2>$1</h2>")
+      .replace(/^# (.*)$/gm, "<h1>$1</h1>");
+
+    // 3. Negritas y cursivas
+    html = html
+      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*(.*?)\*/g, "<em>$1</em>");
+
+    // 4. Convertir URLs sueltas SOLO si no están dentro de href=""
+    html = html.replace(
+      /(?<!href=")(https?:\/\/[^\s<"]+)/g,
+      '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:#4da6ff; text-decoration: underline; font-weight: bold;">$1</a>'
+    );
+
+    // 5. Saltos de línea
+    html = html.replace(/\n/g, "<br />");
+
+    return html;
   };
 
   return (
@@ -83,7 +115,6 @@ export default function Home() {
           boxShadow: "0 0 30px rgba(0,0,0,0.5)",
         }}
       >
-        {/* TÍTULO */}
         <h1
           style={{
             textAlign: "center",
@@ -120,7 +151,6 @@ export default function Home() {
           )}
         </h1>
 
-        {/* DESCRIPCIÓN */}
         <p
           style={{
             textAlign: "center",
@@ -133,7 +163,6 @@ export default function Home() {
           patente para obtener un análisis más completo.
         </p>
 
-        {/* INPUT URL */}
         <input
           type="text"
           value={url}
@@ -152,7 +181,6 @@ export default function Home() {
           }}
         />
 
-        {/* INPUT PATENTE */}
         <input
           type="text"
           value={patente}
@@ -173,7 +201,6 @@ export default function Home() {
           }}
         />
 
-        {/* BOTÓN */}
         <button
           onClick={handleAnalyze}
           disabled={loading}
@@ -197,7 +224,6 @@ export default function Home() {
             : "Chúpalo José Ignacio"}
         </button>
 
-        {/* RESULTADO */}
         {result && (
           <div
             style={{
@@ -206,33 +232,12 @@ export default function Home() {
               borderRadius: "15px",
               lineHeight: "1.8",
               fontSize: "1.25rem",
-              whiteSpace: "normal",
               border: "1px solid #444",
             }}
           >
             <div
               dangerouslySetInnerHTML={{
-                __html: result
-                  // Enlaces Markdown [Texto](https://...)
-                  .replace(
-                    /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
-                    '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:#4da6ff; text-decoration: underline; font-weight: bold;">$1</a>'
-                  )
-                  // URLs sueltas
-                  .replace(
-                    /(https?:\/\/[^\s<]+)/g,
-                    '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:#4da6ff; text-decoration: underline; font-weight: bold;">$1</a>'
-                  )
-                  // Encabezados Markdown
-                  .replace(/^### (.*)$/gm, "<h3>$1</h3>")
-                  .replace(/^## (.*)$/gm, "<h2>$1</h2>")
-                  .replace(/^# (.*)$/gm, "<h1>$1</h1>")
-                  // Negritas
-                  .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-                  // Cursivas
-                  .replace(/\*(.*?)\*/g, "<em>$1</em>")
-                  // Saltos de línea
-                  .replace(/\n/g, "<br />"),
+                __html: renderMarkdown(result),
               }}
             />
           </div>
