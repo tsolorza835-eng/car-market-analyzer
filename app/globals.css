@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+/* Tema global oscuro */
+:root {
+  color-scheme: dark;
+}
+
+/* Fondo completo de la aplicación */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: #000000;
+  color: #ffffff;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Contenedor principal de Next.js */
+body {
+  display: block;
+}
+
+/* Heredar color de texto */
+* {
+  box-sizing: border-box;
+}
+
+input,
+textarea,
+button {
+  font: inherit;
+}
+
+/* Selección de texto */
+::selection {
+  background: #2563eb;
+  color: #ffffff;
+}
