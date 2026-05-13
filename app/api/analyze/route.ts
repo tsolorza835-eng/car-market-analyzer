@@ -6,16 +6,28 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// 🔥 Limpieza segura de precios
-function extractPrice(price: any): number | null {
-  if (!price) return null;
+// 🔥 extracción robusta de precios
+function extractPrice(input: any): number | null {
+  if (!input) return null;
 
-  const cleaned = String(price).replace(/[^0-9]/g, "");
-  const num = parseInt(cleaned);
+  const text = String(input);
 
-  return isNaN(num) ? null : num;
+  const matches = text.match(/\d{1,3}(\.\d{3})+|\d{5,}/g);
+
+  if (!matches || matches.length === 0) return null;
+
+  const numbers = matches.map((n) =>
+    parseInt(n.replace(/\./g, "").replace(/,/g, ""))
+  );
+
+  const valid = numbers.filter((n) => !isNaN(n));
+
+  if (valid.length === 0) return null;
+
+  return Math.max(...valid);
 }
 
+// 🌎 scrape vehículo principal
 async function scrapeMarketplaceData(url: string) {
   try {
     const apify = new ApifyClient({
@@ -33,10 +45,16 @@ async function scrapeMarketplaceData(url: string) {
     const { items } = await apify.dataset(datasetId).listItems();
     const item: any = items?.[0];
 
+    const rawText =
+      item?.price ||
+      item?.title ||
+      item?.description ||
+      "";
+
     return {
       titulo: item?.title || "",
-      precio: item?.price || "",
-      precioNum: extractPrice(item?.price),
+      precio: rawText,
+      precioNum: extractPrice(rawText),
       descripcion: item?.description || "",
       ubicacion: item?.location || "",
       kilometraje: item?.mileage || "",
@@ -61,7 +79,7 @@ async function scrapeMarketplaceData(url: string) {
   }
 }
 
-// 🌎 Mercado Chile completo
+// 📊 mercado general Chile
 async function scrapeMarketComparison(url: string) {
   try {
     const apify = new ApifyClient({
@@ -78,18 +96,33 @@ async function scrapeMarketComparison(url: string) {
 
     const { items } = await apify.dataset(datasetId).listItems();
 
-    if (!items || items.length === 0) return [];
-
     return (items || [])
       .map((item: any) => {
-        const precio = extractPrice(item?.price);
+        const raw =
+          item?.price ||
+          item?.title ||
+          item?.description ||
+          "";
+
+        const precio = extractPrice(raw);
+
         return typeof precio === "number" ? precio : null;
       })
-      .filter((p): p is number => p !== null && !isNaN(p));
+      .filter((p): p is number => typeof p === "number" && !isNaN(p));
 
   } catch {
     return [];
   }
+}
+
+// 📈 proyecciones inversión
+function projectValue(base: number, years: number) {
+  const growthRate = 0.05; // mercado
+  const depreciationRate = 0.07; // desgaste
+
+  return Math.round(
+    base * Math.pow(1 + growthRate - depreciationRate, years)
+  );
 }
 
 export async function POST(request: Request) {
@@ -104,7 +137,7 @@ export async function POST(request: Request) {
       patente: patente || "No proporcionada",
     };
 
-    // 🔥 FIX DEFINITIVO TYPESCRIPT SAFE (SIN NULL JAMÁS)
+    // 📊 promedio mercado Chile
     const prices: number[] = marketData.filter(
       (p): p is number => typeof p === "number" && !isNaN(p)
     );
@@ -116,32 +149,52 @@ export async function POST(request: Request) {
           )
         : null;
 
+    // 📈 proyecciones
+    const projection2026 = avgMarket
+      ? projectValue(avgMarket, 1)
+      : null;
+
+    const projection2028 = avgMarket
+      ? projectValue(avgMarket, 3)
+      : null;
+
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
           content: `
-Eres un experto en compra y venta de autos en Chile.
+Eres un analista de inversión automotriz en Chile (modo 2026).
 
-REGLA CLAVE:
-La ganancia del 20% al 30% se obtiene al REVENDER, no al comprar.
+NO eres vendedor, eres inversionista.
 
-CÁLCULO CORRECTO:
-- Precio justo de compra = 70% a 80% del promedio del mercado
-- Esto asegura ganancia real al vender al precio de mercado
+DEBES ANALIZAR:
+
+1. Precio actual del vehículo
+2. Valor de mercado en Chile
+3. Depreciación del modelo
+4. Proyección 2026 y 2028
+5. Liquidez del modelo (qué tan fácil se vende)
+6. Riesgo de inversión
+
+CLASIFICA COMO:
+- inversión positiva
+- inversión neutra
+- inversión negativa
 
 FORMATO:
 
 🚗 MODELO: ...
 📅 AÑO: ...
-💰 PRECIO PUBLICACIÓN: ...
-📊 PROMEDIO MERCADO CHILE: ...
-📉 PRECIO JUSTO DE COMPRA: ...
-⚖️ DIFERENCIA (% vs mercado): ...
-🎯 GANANCIA ESTIMADA AL REVENDER: ...
+💰 PRECIO ACTUAL: ...
+📊 VALOR MERCADO: ...
+📉 DEPRECIACIÓN: ...
+📈 PROYECCIÓN 2026: ...
+📈 PROYECCIÓN 2028: ...
+⚖️ LIQUIDEZ: alta/media/baja
+💹 POTENCIAL DE INVERSIÓN: ...
 ⚠️ RIESGOS: ...
-🏁 VEREDICTO: ...
+🏁 VEREDICTO FINAL: ...
 `
         },
         {
@@ -150,8 +203,14 @@ FORMATO:
 VEHÍCULO:
 ${JSON.stringify(fullData, null, 2)}
 
-📊 PROMEDIO MERCADO CHILE:
+📊 MERCADO CHILE:
 ${avgMarket ?? "No disponible"}
+
+📈 PROYECCIÓN 2026:
+${projection2026 ?? "No disponible"}
+
+📈 PROYECCIÓN 2028:
+${projection2028 ?? "No disponible"}
 `
         }
       ],
@@ -172,7 +231,7 @@ ${avgMarket ?? "No disponible"}
     if (patente) {
       finalAnalysis += `
 
-🔗 ENLACES
+🔗 VERIFICACIÓN
 
 🔍 Alerta Vehículo:
 https://alertavehiculo.cl
@@ -188,6 +247,8 @@ https://www.aach.cl/CONREMATE/
       analysis: finalAnalysis,
       modeloDetectado,
       avgMarketPrice: avgMarket,
+      projection2026,
+      projection2028,
       marketCount: prices.length,
     });
 
