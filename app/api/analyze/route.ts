@@ -12,7 +12,6 @@ async function scrapeMarketplaceData(url: string) {
       token: process.env.APIFY_TOKEN,
     });
 
-    // Ejecuta el actor de Apify para extraer datos del anuncio
     const run = await apify.actor("apify/facebook-marketplace-scraper").call({
       startUrls: [{ url }],
       maxItems: 1,
@@ -32,31 +31,44 @@ async function scrapeMarketplaceData(url: string) {
 
     const item: any = items[0];
 
-    // Mostrar en logs de Vercel exactamente qué datos devolvió Apify
-    console.log("Datos extraídos desde Apify:", JSON.stringify(item, null, 2));
-
-    return {
+    // Guardamos TODA la información que entregue Apify
+    const carData = {
       titulo: item.title || "No encontrado",
       precio: item.price || "No encontrado",
-      descripcion:
-        item.description || "No se encontró descripción.",
+      descripcion: item.description || "No se encontró descripción.",
       ubicacion: item.location || "No encontrado",
       kilometraje: item.mileage || "No encontrado",
       anio: item.year || "No encontrado",
+      marca: item.make || "No encontrado",
+      modelo: item.model || "No encontrado",
+      combustible: item.fuelType || "No encontrado",
+      transmision: item.transmission || "No encontrado",
       url,
+      datosCompletos: item, // Todo lo que Apify devuelve
     };
+
+    console.log(
+      "Datos extraídos desde Apify:",
+      JSON.stringify(carData, null, 2)
+    );
+
+    return carData;
   } catch (error) {
     console.error("Error en Apify:", error);
 
     return {
       titulo: "No encontrado",
       precio: "No encontrado",
-      descripcion:
-        "No se pudo extraer información del anuncio.",
+      descripcion: "No se pudo extraer información del anuncio.",
       ubicacion: "No encontrado",
       kilometraje: "No encontrado",
       anio: "No encontrado",
+      marca: "No encontrado",
+      modelo: "No encontrado",
+      combustible: "No encontrado",
+      transmision: "No encontrado",
       url,
+      datosCompletos: {},
     };
   }
 }
@@ -77,7 +89,6 @@ export async function POST(request: Request) {
 
     const carData = await scrapeMarketplaceData(url);
 
-    // Log para verificar qué datos finalmente se enviarán a OpenAI
     console.log(
       "Datos enviados a OpenAI:",
       JSON.stringify(carData, null, 2)
@@ -88,26 +99,39 @@ export async function POST(request: Request) {
       messages: [
         {
           role: "system",
-          content:
-            "Eres un experto en compra y venta de autos usados en Chile. Si existen datos concretos como precio, año o kilometraje, debes utilizarlos explícitamente en el análisis. Si faltan datos, realiza una estimación razonable, pero prioriza siempre la información real extraída del anuncio.",
+          content: `
+Eres un experto en compra y venta de autos usados en Chile.
+
+Tu tarea es analizar vehículos publicados en Facebook Marketplace.
+
+REGLAS IMPORTANTES:
+1. Debes utilizar TODA la información disponible.
+2. Si el precio existe, úsalo explícitamente.
+3. Si faltan campos estructurados, analiza el título y la descripción.
+4. Si el título contiene datos como marca, modelo, año o versión, debes identificarlos.
+5. Si solo existe el nombre del vehículo, utiliza tu conocimiento del mercado chileno para estimar el valor de mercado.
+6. Nunca respondas diciendo que no es posible analizar por falta de información.
+7. Siempre entrega un análisis concreto y útil.
+          `,
         },
         {
           role: "user",
           content: `
-Analiza este vehículo publicado en Facebook Marketplace.
+Analiza el siguiente vehículo publicado en Facebook Marketplace.
 
-Datos extraídos:
+DATOS EXTRAÍDOS:
 ${JSON.stringify(carData, null, 2)}
 
-Instrucciones:
-- Usa el precio exacto si está disponible.
-- Usa año, kilometraje, ubicación y descripción si existen.
-- Indica si el precio está bajo, justo o sobre el mercado chileno.
-- Entrega un rango estimado de mercado.
-- Calcula una diferencia aproximada si es posible.
-- Señala ventajas, riesgos y una recomendación final.
+INSTRUCCIONES:
+- Identifica automáticamente marca, modelo, versión y año desde el título o descripción.
+- Usa tu conocimiento del mercado chileno para estimar el precio de mercado.
+- Si existe un precio publicado, compáralo con el mercado.
+- Si no existe un precio, estima igualmente cuánto debería costar.
+- Considera kilometraje, equipamiento y ubicación si están disponibles.
+- Indica si la publicación parece barata, justa o cara.
+- Señala riesgos y recomendaciones para el comprador.
 
-Formato de respuesta:
+FORMATO DE RESPUESTA:
 🚗 Vehículo:
 💰 Precio publicado:
 💰 Precio estimado de mercado:
@@ -115,6 +139,7 @@ Formato de respuesta:
 📈 Diferencia estimada:
 ✅ Recomendación:
 ⚠️ Riesgos:
+📝 Comentarios adicionales:
           `,
         },
       ],
