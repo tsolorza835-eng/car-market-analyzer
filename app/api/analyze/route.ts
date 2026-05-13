@@ -6,7 +6,7 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// 🔥 limpiar precio correctamente
+// 🔥 limpiar precio real
 function extractPrice(price: any): number | null {
   if (!price) return null;
 
@@ -78,16 +78,12 @@ async function scrapeMarketComparison(url: string) {
 
     const { items } = await apify.dataset(datasetId).listItems();
 
-    if (!items || items.length === 0) return [];
-
-    // 🔥 limpiar precios válidos
-    const cleaned = items
+    return (items || [])
       .map((item: any) => ({
         precio: extractPrice(item.price),
       }))
       .filter((x: any) => typeof x.precio === "number" && !isNaN(x.precio));
 
-    return cleaned;
   } catch {
     return [];
   }
@@ -105,10 +101,8 @@ export async function POST(request: Request) {
       patente: patente || "No proporcionada",
     };
 
-    // 🔥 FIX DEFINITIVO TYPESCRIPT SAFE
-    const prices: number[] = marketData
-      .map((x) => x.precio)
-      .filter((p): p is number => typeof p === "number" && !isNaN(p));
+    // 📊 promedio mercado Chile
+    const prices: number[] = marketData.map((x) => x.precio);
 
     const avgMarket =
       prices.length > 0
@@ -125,11 +119,16 @@ export async function POST(request: Request) {
           content: `
 Eres un experto en compra y venta de autos en Chile.
 
-OBLIGATORIO:
-- Detectar precio del post
-- Comparar con promedio real del mercado chileno (Facebook Marketplace)
-- Calcular diferencia en porcentaje
-- Dar precio máximo con 20–30% ganancia
+🚨 REGLA FUNDAMENTAL:
+La ganancia del 20% al 30% se obtiene al REVENDER, no al comprar.
+
+Por lo tanto:
+- El precio de mercado es el precio de VENTA
+- El precio de compra debe ser MENOR al mercado
+
+CÁLCULO CORRECTO:
+- Precio justo de compra = 70% a 80% del promedio del mercado
+- Esto permite ganar 20–30% al vender al precio de mercado
 
 FORMATO:
 
@@ -137,8 +136,9 @@ FORMATO:
 📅 AÑO: ...
 💰 PRECIO PUBLICACIÓN: ...
 📊 PROMEDIO MERCADO CHILE: ...
-⚖️ DIFERENCIA (%): ...
-🎯 PRECIO MÁXIMO COMPRA: ...
+📉 PRECIO JUSTO DE COMPRA: ...
+⚖️ DIFERENCIA (% vs mercado): ...
+🎯 GANANCIA ESTIMADA AL REVENDER: ...
 ⚠️ RIESGOS: ...
 🏁 VEREDICTO: ...
 `
