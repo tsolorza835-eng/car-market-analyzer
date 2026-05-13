@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
-import { scrapeMarketplaceData } from "@/scraper";
+import { scrapeMarketplaceData } from "../../../scraper";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -10,6 +10,7 @@ export async function POST(request: Request) {
   try {
     const { url } = await request.json();
 
+    // Validar que exista un enlace
     if (!url) {
       return NextResponse.json(
         {
@@ -20,10 +21,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // Extraer datos del anuncio
+    // Obtener datos del vehículo desde Facebook Marketplace
     const carData = await scrapeMarketplaceData(url);
 
-    // Enviar a OpenAI para análisis
+    // Enviar los datos a OpenAI para generar el análisis
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -56,6 +57,7 @@ Entrega:
       completion.choices[0]?.message?.content ||
       "No se pudo generar el análisis.";
 
+    // Responder al frontend
     return NextResponse.json({
       success: true,
       data: carData,
