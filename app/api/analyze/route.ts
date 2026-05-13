@@ -6,28 +6,46 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// 🔥 extracción robusta de precios
+// 🔥 EXTRACCIÓN ROBUSTA DE PRECIO
 function extractPrice(input: any): number | null {
   if (!input) return null;
 
   const text = String(input);
 
-  const matches = text.match(/\d{1,3}(\.\d{3})+|\d{5,}/g);
+  const matches = text.match(/\d{1,3}(\.\d{3})+|\d{6,}/g);
 
   if (!matches || matches.length === 0) return null;
 
-  const numbers = matches.map((n) =>
-    parseInt(n.replace(/\./g, "").replace(/,/g, ""))
-  );
+  const numbers = matches.map(n => parseInt(n.replace(/\./g, "")));
 
-  const valid = numbers.filter((n) => !isNaN(n));
+  const valid = numbers.filter(n => !isNaN(n));
 
   if (valid.length === 0) return null;
 
-  return Math.max(...valid);
+  return Math.min(...valid);
 }
 
-// 🌎 scrape vehículo principal
+// 🚗 DETECTAR MODELO + MARCA
+function extractModel(text: string): string | null {
+  if (!text) return null;
+
+  const match = text.match(
+    /(nissan|toyota|chevrolet|mazda|hyundai|kia|subaru|bmw|audi|suzuki)\s+[a-z0-9\-]+/i
+  );
+
+  return match ? match[0] : null;
+}
+
+// 📅 DETECTAR AÑO
+function extractYear(text: string): number | null {
+  if (!text) return null;
+
+  const match = text.match(/\b(19|20)\d{2}\b/);
+
+  return match ? parseInt(match[0]) : null;
+}
+
+// 🌎 SCRAPER PRINCIPAL
 async function scrapeMarketplaceData(url: string) {
   try {
     const apify = new ApifyClient({
@@ -49,18 +67,21 @@ async function scrapeMarketplaceData(url: string) {
       item?.price ||
       item?.title ||
       item?.description ||
+      item?.primaryText ||
+      item?.body ||
+      item?.text ||
       "";
 
     return {
-      titulo: item?.title || "",
+      titulo: item?.title || extractModel(rawText) || "",
       precio: rawText,
       precioNum: extractPrice(rawText),
+      modelo: extractModel(rawText),
+      anio: extractYear(rawText),
       descripcion: item?.description || "",
       ubicacion: item?.location || "",
       kilometraje: item?.mileage || "",
-      anio: item?.year || "",
       marca: item?.make || "",
-      modelo: item?.model || "",
       url,
     };
   } catch {
@@ -68,18 +89,18 @@ async function scrapeMarketplaceData(url: string) {
       titulo: "",
       precio: "",
       precioNum: null,
+      modelo: null,
+      anio: null,
       descripcion: "",
       ubicacion: "",
       kilometraje: "",
-      anio: "",
       marca: "",
-      modelo: "",
       url,
     };
   }
 }
 
-// 📊 mercado general Chile
+// 📊 MERCADO CHILE
 async function scrapeMarketComparison(url: string) {
   try {
     const apify = new ApifyClient({
@@ -104,25 +125,15 @@ async function scrapeMarketComparison(url: string) {
           item?.description ||
           "";
 
-        const precio = extractPrice(raw);
+        const price = extractPrice(raw);
 
-        return typeof precio === "number" ? precio : null;
+        return typeof price === "number" ? price : null;
       })
       .filter((p): p is number => typeof p === "number" && !isNaN(p));
 
   } catch {
     return [];
   }
-}
-
-// 📈 proyecciones inversión
-function projectValue(base: number, years: number) {
-  const growthRate = 0.05; // mercado
-  const depreciationRate = 0.07; // desgaste
-
-  return Math.round(
-    base * Math.pow(1 + growthRate - depreciationRate, years)
-  );
 }
 
 export async function POST(request: Request) {
@@ -137,26 +148,15 @@ export async function POST(request: Request) {
       patente: patente || "No proporcionada",
     };
 
-    // 📊 promedio mercado Chile
+    // 📊 PROMEDIO MERCADO
     const prices: number[] = marketData.filter(
       (p): p is number => typeof p === "number" && !isNaN(p)
     );
 
     const avgMarket =
       prices.length > 0
-        ? Math.round(
-            prices.reduce((a, b) => a + b, 0) / prices.length
-          )
+        ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length)
         : null;
-
-    // 📈 proyecciones
-    const projection2026 = avgMarket
-      ? projectValue(avgMarket, 1)
-      : null;
-
-    const projection2028 = avgMarket
-      ? projectValue(avgMarket, 3)
-      : null;
 
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
@@ -164,53 +164,35 @@ export async function POST(request: Request) {
         {
           role: "system",
           content: `
-Eres un analista de inversión automotriz en Chile (modo 2026).
+Eres un experto en análisis de autos en Chile.
 
-NO eres vendedor, eres inversionista.
-
-DEBES ANALIZAR:
-
-1. Precio actual del vehículo
-2. Valor de mercado en Chile
-3. Depreciación del modelo
-4. Proyección 2026 y 2028
-5. Liquidez del modelo (qué tan fácil se vende)
-6. Riesgo de inversión
-
-CLASIFICA COMO:
-- inversión positiva
-- inversión neutra
-- inversión negativa
+DEBES:
+- Detectar modelo
+- Detectar año
+- Detectar precio real
+- Comparar con mercado
 
 FORMATO:
 
 🚗 MODELO: ...
 📅 AÑO: ...
-💰 PRECIO ACTUAL: ...
-📊 VALOR MERCADO: ...
-📉 DEPRECIACIÓN: ...
-📈 PROYECCIÓN 2026: ...
-📈 PROYECCIÓN 2028: ...
-⚖️ LIQUIDEZ: alta/media/baja
-💹 POTENCIAL DE INVERSIÓN: ...
+💰 PRECIO PUBLICACIÓN: ...
+📊 PROMEDIO MERCADO CHILE: ...
+📉 PRECIO JUSTO DE COMPRA: ...
+⚖️ DIFERENCIA (%): ...
+🎯 GANANCIA ESTIMADA: ...
 ⚠️ RIESGOS: ...
-🏁 VEREDICTO FINAL: ...
+🏁 VEREDICTO: ...
 `
         },
         {
           role: "user",
           content: `
-VEHÍCULO:
+DATOS DEL VEHÍCULO:
 ${JSON.stringify(fullData, null, 2)}
 
-📊 MERCADO CHILE:
+📊 MERCADO:
 ${avgMarket ?? "No disponible"}
-
-📈 PROYECCIÓN 2026:
-${projection2026 ?? "No disponible"}
-
-📈 PROYECCIÓN 2028:
-${projection2028 ?? "No disponible"}
 `
         }
       ],
@@ -221,9 +203,13 @@ ${projection2028 ?? "No disponible"}
       completion.choices[0]?.message?.content || "";
 
     const modeloDetectado =
-      analysis.match(/MODELO[:\- ]*(.*)/i)?.[1]?.trim() ||
       fullData.modelo ||
-      fullData.marca ||
+      analysis.match(/MODELO[:\- ]*(.*)/i)?.[1]?.trim() ||
+      "";
+
+    const anioDetectado =
+      fullData.anio ||
+      analysis.match(/AÑO[:\- ]*(.*)/i)?.[1]?.trim() ||
       "";
 
     let finalAnalysis = analysis;
@@ -233,10 +219,7 @@ ${projection2028 ?? "No disponible"}
 
 🔗 VERIFICACIÓN
 
-🔍 Alerta Vehículo:
 https://alertavehiculo.cl
-
-🛡️ AACH:
 https://www.aach.cl/CONREMATE/
 `;
     }
@@ -246,9 +229,8 @@ https://www.aach.cl/CONREMATE/
       data: fullData,
       analysis: finalAnalysis,
       modeloDetectado,
+      anioDetectado,
       avgMarketPrice: avgMarket,
-      projection2026,
-      projection2028,
       marketCount: prices.length,
     });
 
