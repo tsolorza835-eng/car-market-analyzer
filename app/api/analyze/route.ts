@@ -17,26 +17,45 @@ export async function POST(request: Request) {
       );
     }
 
-    // 🔥 AQUÍ DEBE IR TU SCRAPER REAL
-    const scrapedData = await fetch("http://localhost:3000/api/scraper", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
-    });
+    // 🔥 SCRAPER (robusto)
+    const scrapedData = await fetch(
+      new URL("/api/scraper", request.url),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      }
+    );
 
-    const data = await scrapedData.json();
+    // 🔥 NO ROMPER SI NO ES JSON
+    const raw = await scrapedData.text();
 
-    if (!data || !data.title) {
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch (err) {
+      console.error("❌ Scraper no devolvió JSON:", raw);
+
       return NextResponse.json(
         {
           success: false,
-          error: "Scraper no devolvió datos válidos",
+          error: "Scraper devolvió respuesta inválida",
         },
         { status: 500 }
       );
     }
 
-    // 🔥 CÁLCULOS DEFENSIVOS (sin "No disponible" falso)
+    if (!data?.title && !data?.price) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Scraper no devolvió datos completos",
+        },
+        { status: 500 }
+      );
+    }
+
+    // 🔥 CÁLCULOS SEGUROS
     const price = Number(data.price) || 0;
     const avgMarket = Number(data.avgMarket) || 0;
 
@@ -46,14 +65,14 @@ export async function POST(request: Request) {
     const profit =
       avgMarket > 0 ? avgMarket - price : null;
 
-    const maxBuy20 = avgMarket ? avgMarket * 0.8 : null;
-    const maxBuy30 = avgMarket ? avgMarket * 0.7 : null;
+    const maxBuy20 = avgMarket ? Math.round(avgMarket * 0.8) : null;
+    const maxBuy30 = avgMarket ? Math.round(avgMarket * 0.7) : null;
 
-    // 🔥 INSERT EN SUPABASE
+    // 🔥 INSERT SUPABASE (seguro)
     const { error } = await supabase.from("listings").insert([
       {
-        title: data.title,
-        price: data.price,
+        title: data.title || "Sin título",
+        price: data.price || 0,
         market_avg: avgMarket,
         location: data.location || "Concepción",
         created_at: new Date(),
@@ -64,6 +83,7 @@ export async function POST(request: Request) {
       console.error("Supabase error:", error);
     }
 
+    // 🔥 RESPUESTA FINAL
     return NextResponse.json({
       success: true,
       data: {
@@ -76,11 +96,15 @@ export async function POST(request: Request) {
         maxBuy30,
       },
     });
+
   } catch (error: any) {
-    console.error(error);
+    console.error("❌ ERROR GENERAL:", error);
 
     return NextResponse.json(
-      { success: false, error: "Error interno" },
+      {
+        success: false,
+        error: "Error interno del servidor",
+      },
       { status: 500 }
     );
   }
