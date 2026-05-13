@@ -65,6 +65,28 @@ async function scrapeMarketplaceData(url: string) {
   }
 }
 
+// Detecta una patente chilena en el título o descripción si el usuario no la ingresa
+function detectarPatente(texto: string): string | null {
+  if (!texto) return null;
+
+  const limpio = texto.toUpperCase().replace(/[^A-Z0-9]/g, " ");
+
+  // Formatos comunes: ABCD12 o AB1234
+  const patrones = [
+    /\b[A-Z]{4}[0-9]{2}\b/,
+    /\b[A-Z]{2}[0-9]{4}\b/,
+  ];
+
+  for (const patron of patrones) {
+    const match = limpio.match(patron);
+    if (match) {
+      return match[0];
+    }
+  }
+
+  return null;
+}
+
 export async function POST(request: Request) {
   try {
     const { url, patente } = await request.json();
@@ -81,9 +103,17 @@ export async function POST(request: Request) {
 
     const carData = await scrapeMarketplaceData(url);
 
+    // Detectar patente automáticamente si el usuario no la ingresó
+    let patenteFinal = patente?.trim().toUpperCase();
+
+    if (!patenteFinal) {
+      const textoBusqueda = `${carData.titulo} ${carData.descripcion}`;
+      patenteFinal = detectarPatente(textoBusqueda) || "";
+    }
+
     const fullData = {
       ...carData,
-      patente: patente || "No proporcionada",
+      patente: patenteFinal || "No proporcionada",
     };
 
     const completion = await client.chat.completions.create({
@@ -124,15 +154,14 @@ Incluye:
       completion.choices[0]?.message?.content ||
       "No se pudo generar el análisis.";
 
-    if (patente && patente.trim() !== "") {
-      const patenteLimpia = patente.trim().toUpperCase();
-
+    // Usar la patente detectada automáticamente para los enlaces
+    if (patenteFinal) {
       analysis += `
 
 ## 🔗 Enlaces útiles para verificación
 
-🔍 Alerta Vehículo (prueba automática):
-alertavehiculo://buscar?patente=${patenteLimpia}
+📱 Alerta Vehículo (abrir app):
+alertavehiculo://buscar?patente=${patenteFinal}
 
 🌐 Alerta Vehículo (sitio web):
 https://alertavehiculo.cl
@@ -146,6 +175,7 @@ https://www.aach.cl/CONREMATE/
       success: true,
       data: fullData,
       analysis,
+      patenteDetectada: patenteFinal || null,
     });
   } catch (error) {
     console.error("Error en análisis:", error);
