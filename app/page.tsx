@@ -17,41 +17,11 @@ export default function Home() {
     }
 
     const interval = setInterval(() => {
-      setDots((prev) => {
-        if (prev === "...") return ".";
-        return prev + ".";
-      });
+      setDots((prev) => (prev === "..." ? "." : prev + "."));
     }, 500);
 
     return () => clearInterval(interval);
   }, [loading]);
-
-  // Extrae una aproximación del modelo desde el texto del resultado
-  useEffect(() => {
-    if (!result) return;
-
-    const patterns = [
-      /Vehículo identificado:\s*([^\n]+)/i,
-      /modelo[:\s]+([^\n]+)/i,
-    ];
-
-    for (const pattern of patterns) {
-      const match = result.match(pattern);
-      if (match && match[1]) {
-        const detected = match[1]
-          .replace(/[*#:_-]/g, "")
-          .trim()
-          .split(" ")
-          .slice(0, 3)
-          .join(" ");
-
-        if (detected.length > 0) {
-          setCarModel(detected);
-          return;
-        }
-      }
-    }
-  }, [result]);
 
   const normalizeFacebookUrl = (input: string) => {
     let cleaned = input.trim();
@@ -70,7 +40,7 @@ export default function Home() {
 
   const handleAnalyze = async () => {
     if (!url.trim()) {
-      alert("Por favor ingresa un enlace de Facebook Marketplace.");
+      alert("Ingresa un link de Facebook Marketplace.");
       return;
     }
 
@@ -94,21 +64,14 @@ export default function Home() {
 
       const data = await response.json();
 
-      // Detectar el modelo directamente desde los datos del scraper
-      if (data?.data?.modelo && data.data.modelo !== "No encontrado") {
-        setCarModel(data.data.modelo);
-      } else if (
-        data?.data?.marca &&
-        data?.data?.modelo &&
-        data.data.modelo !== "No encontrado"
-      ) {
+      if (data?.data?.modelo) {
         setCarModel(`${data.data.marca} ${data.data.modelo}`);
       }
 
       if (data.success) {
-        setResult(data.analysis || "No se recibió análisis.");
+        setResult(data.analysis || "Sin resultado.");
       } else {
-        setResult(data.error || "Error al analizar.");
+        setResult(data.error || "Error.");
       }
     } catch {
       setResult("Error de conexión.");
@@ -120,48 +83,125 @@ export default function Home() {
   const renderMarkdown = (text: string) => {
     let html = text;
 
+    // links markdown
     html = html.replace(
       /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
-      '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:#4da6ff; text-decoration: underline; font-weight: bold;">$1</a>'
+      '<a href="$2" target="_blank" style="color:#4da6ff;text-decoration:underline;font-weight:bold;">$1</a>'
     );
 
+    // encabezados
     html = html
       .replace(/^### (.*)$/gm, "<h3>$1</h3>")
       .replace(/^## (.*)$/gm, "<h2>$1</h2>")
       .replace(/^# (.*)$/gm, "<h1>$1</h1>");
 
-    html = html
-      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*(.*?)\*/g, "<em>$1</em>");
+    // negritas
+    html = html.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
 
+    // URLs (VERSIÓN SEGURA PARA IPHONE)
     html = html.replace(
-      /(?<!href=")(https?:\/\/[^\s<"]+)/g,
-      '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:#4da6ff; text-decoration: underline; font-weight: bold;">$1</a>'
+      /(https?:\/\/[^\s<"]+)/g,
+      '<a href="$1" target="_blank" style="color:#4da6ff;text-decoration:underline;font-weight:bold;">$1</a>'
     );
 
+    // saltos de línea
     html = html.replace(/\n/g, "<br />");
 
     return html;
   };
 
   return (
-    <main>{/* Mantén todo tu JSX actual igual */}</main>
+    <main
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        background: "#111",
+        color: "white",
+        padding: "20px",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "900px",
+          background: "#222",
+          padding: "40px",
+          borderRadius: "20px",
+        }}
+      >
+        <h1
+          style={{
+            textAlign: "center",
+            fontSize: "2.5rem",
+            marginBottom: "20px",
+          }}
+        >
+          {loading ? (
+            <>
+              <img
+                src="/lucas.png"
+                style={{
+                  width: 70,
+                  height: 70,
+                  borderRadius: "50%",
+                }}
+              />
+              <div>
+                Señor Lucas está investigando{" "}
+                {carModel ? `tu próximo ${carModel}` : ""}{dots}
+              </div>
+            </>
+          ) : (
+            "🚗 Analizador de Autos"
+          )}
+        </h1>
+
+        <input
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="Link del auto"
+          style={{ width: "100%", padding: 15, marginBottom: 10 }}
+        />
+
+        <input
+          value={patente}
+          onChange={(e) => setPatente(e.target.value)}
+          placeholder="Patente (opcional)"
+          style={{ width: "100%", padding: 15, marginBottom: 10 }}
+        />
+
+        <button
+          onClick={handleAnalyze}
+          style={{
+            width: "100%",
+            padding: 15,
+            background: "#0070f3",
+            color: "white",
+            fontSize: 18,
+          }}
+        >
+          {loading ? "Analizando..." : "Analizar"}
+        </button>
+
+        {result && (
+          <div
+            style={{
+              marginTop: 20,
+              background: "#333",
+              padding: 20,
+              borderRadius: 10,
+            }}
+          >
+            <div
+              dangerouslySetInnerHTML={{
+                __html: renderMarkdown(result),
+              }}
+            />
+          </div>
+        )}
+      </div>
+    </main>
   );
 }
-
-// REEMPLAZA SOLO ESTA PARTE DENTRO DEL <h1>:
-
-/*
-{loading ? (
-  <>
-    <img ... />
-    <span>
-      {carModel
-        ? `Señor Lucas está investigando tu próximo ${carModel}${dots}`
-        : `Señor Lucas está investigando${dots}`}
-    </span>
-  </>
-) : (
-  ...
-)}
-*/
