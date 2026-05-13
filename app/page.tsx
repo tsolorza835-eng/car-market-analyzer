@@ -207,11 +207,27 @@ export default function Home() {
               borderRadius: "15px",
               lineHeight: "1.8",
               fontSize: "1.25rem",
-              whiteSpace: "pre-wrap",
+              whiteSpace: "normal",
               border: "1px solid #444",
             }}
           >
-            {result}
+            <div
+              dangerouslySetInnerHTML={{
+                __html: result
+                  // Convierte enlaces Markdown [Texto](https://...)
+                  .replace(
+                    /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
+                    '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:#4da6ff; text-decoration: underline; font-weight: bold;">$1</a>'
+                  )
+                  // Convierte URLs sueltas en enlaces clickeables
+                  .replace(
+                    /(https?:\/\/[^\s<]+)/g,
+                    '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:#4da6ff; text-decoration: underline; font-weight: bold;">$1</a>'
+                  )
+                  // Mantiene saltos de línea
+                  .replace(/\n/g, "<br />"),
+              }}
+            />
           </div>
         )}
       </div>
