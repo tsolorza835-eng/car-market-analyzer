@@ -53,7 +53,8 @@ async function scrapeMarketplaceData(url: string) {
   }
 }
 
-async function scrapeMarketComparison(url: string, location?: string) {
+// 🔥 DOBLE MERCADO: general + concepción
+async function scrapeMarketComparison(url: string) {
   try {
     const apify = new ApifyClient({
       token: process.env.APIFY_TOKEN,
@@ -61,31 +62,20 @@ async function scrapeMarketComparison(url: string, location?: string) {
 
     const run = await apify.actor("apify/facebook-marketplace-scraper").call({
       startUrls: [{ url }],
-      maxItems: 100, // 🔥 máximo posible razonable
+      maxItems: 100,
     });
 
     const datasetId = run.defaultDatasetId;
-    if (!datasetId) return [];
+    if (!datasetId) return { general: [], concepcion: [] };
 
     const { items } = await apify.dataset(datasetId).listItems();
 
-    if (!items || items.length === 0) return [];
-
-    let filtered = items;
-
-    // 📍 filtro Concepción (VIII región)
-    if (location && location.trim() !== "") {
-      const city = location.toLowerCase();
-
-      const cityFiltered = items.filter((item: any) =>
-        item.location?.toLowerCase().includes(city)
-      );
-
-      // 🔥 si hay pocos resultados, usamos todo igual
-      filtered = cityFiltered.length > 3 ? cityFiltered : items;
+    if (!items || items.length === 0) {
+      return { general: [], concepcion: [] };
     }
 
-    return filtered.map((item: any) => ({
+    // 🌎 MERCADO GENERAL (FACEBOOK COMPLETO)
+    const general = items.slice(0, 30).map((item: any) => ({
       titulo: item.title || "",
       precio: item.price || "No indicado",
       kilometraje: item.mileage || "",
@@ -94,8 +84,32 @@ async function scrapeMarketComparison(url: string, location?: string) {
       año: item.year || "",
       ubicacion: item.location || "",
     }));
+
+    // 📍 MERCADO CONCEPCIÓN (VIII REGIÓN)
+    const concepcionFiltered = items.filter((item: any) => {
+      const loc = item.location?.toLowerCase() || "";
+      return (
+        loc.includes("concepcion") ||
+        loc.includes("concepción") ||
+        loc.includes("biobio") ||
+        loc.includes("biobío")
+      );
+    });
+
+    const concepcion = concepcionFiltered.slice(0, 20).map((item: any) => ({
+      titulo: item.title || "",
+      precio: item.price || "No indicado",
+      kilometraje: item.mileage || "",
+      marca: item.make || "",
+      modelo: item.model || "",
+      año: item.year || "",
+      ubicacion: item.location || "",
+    }));
+
+    return { general, concepcion };
+
   } catch {
-    return [];
+    return { general: [], concepcion: [] };
   }
 }
 
@@ -105,10 +119,7 @@ export async function POST(request: Request) {
 
     const carData = await scrapeMarketplaceData(url);
 
-    const marketData = await scrapeMarketComparison(
-      url,
-      carData.ubicacion
-    );
+    const marketData = await scrapeMarketComparison(url);
 
     const fullData = {
       ...carData,
@@ -124,12 +135,12 @@ export async function POST(request: Request) {
 Eres un experto en compra y venta de autos en Chile.
 
 OBLIGATORIO:
-- Analizar vehículo principal
-- Comparar con mercado REAL disponible (sin limitar cantidad)
-- Usar toda la data disponible (pueden ser 5, 20, 50 o más autos)
-- Indicar cuántos autos se usaron
-- Estimar rango en Concepción (VIII región)
-- Dar precio máximo para ganar 20% a 30%
+
+1. Analizar el vehículo principal
+2. Comparar con MERCADO GENERAL de Facebook Marketplace
+3. Comparar con MERCADO CONCEPCIÓN (VIII Región)
+4. Mostrar diferencias entre ambos mercados
+5. Calcular precio máximo para 20–30% ganancia
 
 FORMATO CON EMOJIS:
 
@@ -137,12 +148,25 @@ FORMATO CON EMOJIS:
 📅 AÑO: ...
 📊 KILOMETRAJE: ...
 💰 PRECIO PUBLICACIÓN: ...
-📍 PRECIO EN CONCEPCIÓN (RANGO): ...
-📈 VALOR MERCADO PROMEDIO: ...
-⚖️ COMPARACIÓN: (cantidad de autos usados + análisis)
-🎯 PRECIO MÁXIMO COMPRA: ...
-⚠️ RIESGOS: ...
-🏁 VEREDICTO: ...
+
+🌎 MERCADO FACEBOOK (GENERAL):
+- promedio
+- rango
+
+📍 MERCADO CONCEPCIÓN (VIII REGIÓN):
+- promedio
+- rango
+
+⚖️ COMPARACIÓN ENTRE MERCADOS:
+...
+
+🎯 PRECIO MÁXIMO COMPRA:
+...
+
+⚠️ RIESGOS:
+...
+
+🏁 VEREDICTO:
 `
         },
         {
@@ -151,8 +175,11 @@ FORMATO CON EMOJIS:
 VEHÍCULO PRINCIPAL:
 ${JSON.stringify(fullData, null, 2)}
 
-MERCADO DISPONIBLE (sin límite fijo, puede variar):
-${JSON.stringify(marketData, null, 2)}
+🌎 MERCADO GENERAL FACEBOOK:
+${JSON.stringify(marketData.general, null, 2)}
+
+📍 MERCADO CONCEPCIÓN (VIII REGIÓN):
+${JSON.stringify(marketData.concepcion, null, 2)}
 `
         }
       ],
@@ -188,7 +215,8 @@ https://www.aach.cl/CONREMATE/
       data: fullData,
       analysis: finalAnalysis,
       modeloDetectado,
-      marketCount: marketData.length, // 🔥 cuántos se usaron realmente
+      marketGeneralCount: marketData.general.length,
+      marketConcepcionCount: marketData.concepcion.length
     });
 
   } catch (error) {
