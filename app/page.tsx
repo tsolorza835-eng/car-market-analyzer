@@ -25,6 +25,23 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [loading]);
 
+  const normalizeFacebookUrl = (input: string) => {
+    let cleaned = input.trim();
+
+    // Convertir dominios móviles a www
+    cleaned = cleaned
+      .replace("m.facebook.com", "www.facebook.com")
+      .replace("web.facebook.com", "www.facebook.com");
+
+    // Intentar extraer el ID del anuncio desde URLs compartidas
+    const shareMatch = cleaned.match(/facebook\.com\/share\/[^/]+\/([^/?]+)/);
+    if (shareMatch && shareMatch[1]) {
+      cleaned = `https://www.facebook.com/marketplace/item/${shareMatch[1]}/`;
+    }
+
+    return cleaned;
+  };
+
   const handleAnalyze = async () => {
     if (!url.trim()) {
       alert("Por favor ingresa un enlace de Facebook Marketplace.");
@@ -35,13 +52,15 @@ export default function Home() {
     setResult("");
 
     try {
+      const normalizedUrl = normalizeFacebookUrl(url);
+
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          url,
+          url: normalizedUrl,
           patente: patente.trim().toUpperCase(),
         }),
       });
@@ -63,30 +82,25 @@ export default function Home() {
   const renderMarkdown = (text: string) => {
     let html = text;
 
-    // 1. Convertir enlaces Markdown [Texto](https://...)
     html = html.replace(
       /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
       '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:#4da6ff; text-decoration: underline; font-weight: bold;">$1</a>'
     );
 
-    // 2. Convertir encabezados Markdown
     html = html
       .replace(/^### (.*)$/gm, "<h3>$1</h3>")
       .replace(/^## (.*)$/gm, "<h2>$1</h2>")
       .replace(/^# (.*)$/gm, "<h1>$1</h1>");
 
-    // 3. Negritas y cursivas
     html = html
       .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
       .replace(/\*(.*?)\*/g, "<em>$1</em>");
 
-    // 4. Convertir URLs sueltas SOLO si no están dentro de href=""
     html = html.replace(
       /(?<!href=")(https?:\/\/[^\s<"]+)/g,
       '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:#4da6ff; text-decoration: underline; font-weight: bold;">$1</a>'
     );
 
-    // 5. Saltos de línea
     html = html.replace(/\n/g, "<br />");
 
     return html;
@@ -112,7 +126,7 @@ export default function Home() {
           background: "#222",
           padding: "40px",
           borderRadius: "20px",
-          boxShadow: "0 0 30px rgba(0,0,0,0.5)",
+          boxShadow: "0 0 30px rgba(0, 0, 0, 0.5)",
         }}
       >
         <h1
@@ -138,7 +152,7 @@ export default function Home() {
                   borderRadius: "50%",
                   objectFit: "cover",
                   border: "3px solid #00aaff",
-                  boxShadow: "0 0 20px rgba(0,170,255,0.5)",
+                  boxShadow: "0 0 20px rgba(0, 170, 255, 0.5)",
                 }}
               />
               <span>{`Señor Lucas está analizando${dots}`}</span>
