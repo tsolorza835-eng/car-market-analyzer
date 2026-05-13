@@ -9,7 +9,6 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [dots, setDots] = useState(".");
 
-  // Animación de puntos mientras carga
   useEffect(() => {
     if (!loading) {
       setDots(".");
@@ -214,17 +213,25 @@ export default function Home() {
             <div
               dangerouslySetInnerHTML={{
                 __html: result
-                  // Convierte enlaces Markdown [Texto](https://...)
+                  // Enlaces Markdown [Texto](https://...)
                   .replace(
                     /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
                     '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:#4da6ff; text-decoration: underline; font-weight: bold;">$1</a>'
                   )
-                  // Convierte URLs sueltas en enlaces clickeables
+                  // URLs sueltas
                   .replace(
                     /(https?:\/\/[^\s<]+)/g,
                     '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:#4da6ff; text-decoration: underline; font-weight: bold;">$1</a>'
                   )
-                  // Mantiene saltos de línea
+                  // Encabezados Markdown
+                  .replace(/^### (.*)$/gm, "<h3>$1</h3>")
+                  .replace(/^## (.*)$/gm, "<h2>$1</h2>")
+                  .replace(/^# (.*)$/gm, "<h1>$1</h1>")
+                  // Negritas
+                  .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+                  // Cursivas
+                  .replace(/\*(.*?)\*/g, "<em>$1</em>")
+                  // Saltos de línea
                   .replace(/\n/g, "<br />"),
               }}
             />
