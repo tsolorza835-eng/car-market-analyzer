@@ -7,7 +7,7 @@ const client = new OpenAI({
 });
 
 // ======================
-// 🔥 UTILIDADES BASE
+// 🔥 HELPERS
 // ======================
 
 function cleanText(input: any): string {
@@ -29,7 +29,7 @@ function extractPrice(input: any): number | null {
   return numbers.length ? Math.min(...numbers) : null;
 }
 
-// 🚗 modelo robusto
+// 🚗 modelo
 function extractModel(text: string): string | null {
   const t = cleanText(text);
 
@@ -40,15 +40,16 @@ function extractModel(text: string): string | null {
   return match ? match[0] : null;
 }
 
-// 📅 año robusto
+// 📅 año
 function extractYear(text: string): number | null {
   const t = cleanText(text);
+
   const match = t.match(/\b(19|20)\d{2}\b/);
   return match ? parseInt(match[0]) : null;
 }
 
 // ======================
-// 🌎 SCRAPER ROBUSTO
+// 🌎 SCRAPER SEGURO
 // ======================
 
 async function scrapeMarketplaceData(url: string) {
@@ -66,16 +67,48 @@ async function scrapeMarketplaceData(url: string) {
     if (!datasetId) throw new Error("No dataset");
 
     const { items } = await apify.dataset(datasetId).listItems();
-    const item: any = items?.[0] || {};
 
-    const rawText =
-      item?.price ||
-      item?.title ||
-      item?.description ||
-      item?.primaryText ||
-      item?.body ||
-      item?.text ||
-      "";
+    const item: any = items?.[0];
+
+    if (!item) {
+      return {
+        titulo: "No detectado",
+        precio: "",
+        precioNum: null,
+        modelo: null,
+        anio: null,
+        descripcion: "",
+        ubicacion: "",
+        url,
+      };
+    }
+
+    // 🔥 FIX CRÍTICO: UNIFICAR TODO EN TEXTO REAL
+    const rawText = [
+      item?.title,
+      item?.name,
+      item?.price,
+      item?.description,
+      item?.text,
+      item?.primaryText,
+      item?.body
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    // 🔥 si no hay texto real, no inventar nada
+    if (!rawText || rawText.trim().length < 3) {
+      return {
+        titulo: item?.title || "No detectado",
+        precio: "",
+        precioNum: null,
+        modelo: null,
+        anio: null,
+        descripcion: "",
+        ubicacion: "",
+        url,
+      };
+    }
 
     return {
       titulo: item?.title || extractModel(rawText) || "No detectado",
@@ -87,9 +120,10 @@ async function scrapeMarketplaceData(url: string) {
       ubicacion: item?.location || "",
       url,
     };
+
   } catch {
     return {
-      titulo: "",
+      titulo: "No detectado",
       precio: "",
       precioNum: null,
       modelo: null,
@@ -123,35 +157,23 @@ async function scrapeMarketComparison(url: string) {
 
     return (items || [])
       .map((item: any) => {
-        const raw =
-          item?.price ||
-          item?.title ||
-          item?.description ||
-          "";
+        const raw = [
+          item?.price,
+          item?.title,
+          item?.description
+        ].filter(Boolean).join(" ");
 
         return extractPrice(raw);
       })
       .filter((p): p is number => typeof p === "number");
+
   } catch {
     return [];
   }
 }
 
 // ======================
-// 🚨 SANITIZADOR FINAL
-// (EVITA INVENTOS DE IA)
-// ======================
-
-function sanitizeAnalysis(text: string) {
-  return text
-    .replace(/vehículo para desarme/gi, "venta normal")
-    .replace(/desarme/gi, "uso general")
-    .replace(/inscripción anulada/gi, "no verificado")
-    .replace(/problemas legales/gi, "información no disponible");
-}
-
-// ======================
-// 🚀 API MAIN
+// 🚀 API
 // ======================
 
 export async function POST(request: Request) {
@@ -170,25 +192,18 @@ export async function POST(request: Request) {
         ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length)
         : null;
 
-    // ======================
-    // 🧠 IA CONTROLADA
-    // ======================
-
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
           content: `
-Eres un analista profesional de autos en Chile.
+Eres un analista de autos en Chile.
 
-REGLAS OBLIGATORIAS:
-- NO inventes riesgos legales
-- NO asumas "desarme"
-- NO asumas problemas mecánicos
-- Si no hay datos → "No disponible"
-
-Solo analiza información REAL entregada.
+REGLAS:
+- NO inventes datos
+- NO inventes riesgos
+- Si falta info → "No disponible"
 
 FORMATO:
 
@@ -196,25 +211,21 @@ FORMATO:
 📅 AÑO
 💰 PRECIO PUBLICACIÓN
 📊 PROMEDIO MERCADO
-📉 PRECIO JUSTO COMPRA (70–80%)
+📉 PRECIO JUSTO COMPRA
 ⚖️ DIFERENCIA %
-🎯 GANANCIA ESTIMADA
-⚠️ RIESGOS (solo si están en datos)
+🎯 GANANCIA
+⚠️ RIESGOS (solo si existen)
 🏁 VEREDICTO
 `
         },
         {
           role: "user",
           content: `
-VEHÍCULO (DATOS REALES):
+DATOS REALES:
 
-Modelo: ${carData.modelo ?? "No disponible"}
-Año: ${carData.anio ?? "No disponible"}
-Precio: ${carData.precioNum ?? "No disponible"}
-Descripción: ${carData.descripcion ?? "No disponible"}
-Ubicación: ${carData.ubicacion ?? "No disponible"}
+${JSON.stringify(carData, null, 2)}
 
-📊 MERCADO PROMEDIO:
+📊 MERCADO:
 ${avgMarket ?? "No disponible"}
 `
         }
@@ -222,33 +233,15 @@ ${avgMarket ?? "No disponible"}
       temperature: 0.2,
     });
 
-    let analysis =
+    const analysis =
       completion.choices[0]?.message?.content || "";
-
-    // ======================
-    // 🧹 LIMPIEZA FINAL
-    // ======================
-
-    analysis = sanitizeAnalysis(analysis);
-
-    const finalModel = carData.modelo || "No detectado";
-    const finalYear = carData.anio || null;
-
-    if (patente) {
-      analysis += `
-
-🔗 VERIFICACIÓN
-https://alertavehiculo.cl
-https://www.aach.cl/CONREMATE/
-`;
-    }
 
     return NextResponse.json({
       success: true,
       data: carData,
       analysis,
-      modeloDetectado: finalModel,
-      anioDetectado: finalYear,
+      modeloDetectado: carData.modelo,
+      anioDetectado: carData.anio,
       avgMarketPrice: avgMarket,
       marketCount: prices.length,
     });
