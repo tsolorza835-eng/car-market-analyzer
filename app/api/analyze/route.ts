@@ -25,7 +25,7 @@ async function scrapeMarketplaceData(url: string) {
 
     return {
       titulo: item.title || "",
-      precio: item.price || "",
+      precio: item.price || "No indicado",
       descripcion: item.description || "",
       ubicacion: item.location || "",
       kilometraje: item.mileage || "",
@@ -39,7 +39,7 @@ async function scrapeMarketplaceData(url: string) {
   } catch {
     return {
       titulo: "",
-      precio: "",
+      precio: "No indicado",
       descripcion: "",
       ubicacion: "",
       kilometraje: "",
@@ -53,7 +53,6 @@ async function scrapeMarketplaceData(url: string) {
   }
 }
 
-// 🔥 COMPARACIÓN REAL (20 EN MISMA ZONA)
 async function scrapeMarketComparison(url: string, location?: string) {
   try {
     const apify = new ApifyClient({
@@ -62,7 +61,7 @@ async function scrapeMarketComparison(url: string, location?: string) {
 
     const run = await apify.actor("apify/facebook-marketplace-scraper").call({
       startUrls: [{ url }],
-      maxItems: 50, // 🔥 traemos más para filtrar bien
+      maxItems: 100, // 🔥 máximo posible razonable
     });
 
     const datasetId = run.defaultDatasetId;
@@ -70,23 +69,25 @@ async function scrapeMarketComparison(url: string, location?: string) {
 
     const { items } = await apify.dataset(datasetId).listItems();
 
-    // 🔥 FILTRO POR ZONA
+    if (!items || items.length === 0) return [];
+
     let filtered = items;
 
-    if (location) {
-      filtered = items.filter((item: any) => {
-        if (!item.location) return false;
+    // 📍 filtro Concepción (VIII región)
+    if (location && location.trim() !== "") {
+      const city = location.toLowerCase();
 
-        return item.location
-          .toLowerCase()
-          .includes(location.toLowerCase());
-      });
+      const cityFiltered = items.filter((item: any) =>
+        item.location?.toLowerCase().includes(city)
+      );
+
+      // 🔥 si hay pocos resultados, usamos todo igual
+      filtered = cityFiltered.length > 3 ? cityFiltered : items;
     }
 
-    // 🔥 SOLO 20 RESULTADOS FINALES
-    return filtered.slice(0, 20).map((item: any) => ({
+    return filtered.map((item: any) => ({
       titulo: item.title || "",
-      precio: item.price || 0,
+      precio: item.price || "No indicado",
       kilometraje: item.mileage || "",
       marca: item.make || "",
       modelo: item.model || "",
@@ -124,23 +125,25 @@ Eres un experto en compra y venta de autos en Chile.
 
 OBLIGATORIO:
 - Analizar vehículo principal
-- Comparar con autos similares del MISMO MODELO y MISMA ZONA
-- Usar hasta 20 publicaciones del mercado
-- Indicar cuántas publicaciones se usaron
-- Calcular promedio de mercado
-- Definir precio máximo para ganar 20% a 30%
+- Comparar con mercado REAL disponible (sin limitar cantidad)
+- Usar toda la data disponible (pueden ser 5, 20, 50 o más autos)
+- Indicar cuántos autos se usaron
+- Estimar rango en Concepción (VIII región)
+- Dar precio máximo para ganar 20% a 30%
 
-FORMATO:
+FORMATO CON EMOJIS:
 
-MODELO: ...
-AÑO: ...
-KILOMETRAJE: ...
-VALOR MERCADO: ...
-COMPARACIÓN: (número de autos usados + análisis de promedio)
-PRECIO MÁXIMO COMPRA: ...
-RIESGOS: ...
-VEREDICTO: ...
-`,
+🚗 MODELO: ...
+📅 AÑO: ...
+📊 KILOMETRAJE: ...
+💰 PRECIO PUBLICACIÓN: ...
+📍 PRECIO EN CONCEPCIÓN (RANGO): ...
+📈 VALOR MERCADO PROMEDIO: ...
+⚖️ COMPARACIÓN: (cantidad de autos usados + análisis)
+🎯 PRECIO MÁXIMO COMPRA: ...
+⚠️ RIESGOS: ...
+🏁 VEREDICTO: ...
+`
         },
         {
           role: "user",
@@ -148,10 +151,10 @@ VEREDICTO: ...
 VEHÍCULO PRINCIPAL:
 ${JSON.stringify(fullData, null, 2)}
 
-MERCADO EN MISMA ZONA (hasta 20 autos):
+MERCADO DISPONIBLE (sin límite fijo, puede variar):
 ${JSON.stringify(marketData, null, 2)}
-`,
-        },
+`
+        }
       ],
       temperature: 0.2,
     });
@@ -170,7 +173,7 @@ ${JSON.stringify(marketData, null, 2)}
     if (patente) {
       finalAnalysis += `
 
-## 🔗 Enlaces de verificación
+🔗 ENLACES DE VERIFICACIÓN
 
 🔍 Alerta Vehículo:
 https://alertavehiculo.cl
@@ -185,8 +188,9 @@ https://www.aach.cl/CONREMATE/
       data: fullData,
       analysis: finalAnalysis,
       modeloDetectado,
-      marketCount: marketData.length, // 🔥 cuántos comparó realmente
+      marketCount: marketData.length, // 🔥 cuántos se usaron realmente
     });
+
   } catch (error) {
     return NextResponse.json(
       { success: false, error: "Error interno" },
