@@ -121,7 +121,7 @@ export default function Home() {
             marginBottom: "25px",
           }}
         >
-          {loading ? "Analizando..." : "Analizar Precio"}
+          {loading ? "Sr Lucas" : "Chúpalo José Ignacio"}
         </button>
 
         {result && (

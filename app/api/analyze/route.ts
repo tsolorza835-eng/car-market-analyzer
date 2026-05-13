@@ -31,7 +31,6 @@ async function scrapeMarketplaceData(url: string) {
 
     const item: any = items[0];
 
-    // Guardamos TODA la información que entregue Apify
     const carData = {
       titulo: item.title || "No encontrado",
       precio: item.price || "No encontrado",
@@ -44,7 +43,7 @@ async function scrapeMarketplaceData(url: string) {
       combustible: item.fuelType || "No encontrado",
       transmision: item.transmission || "No encontrado",
       url,
-      datosCompletos: item, // Todo lo que Apify devuelve
+      datosCompletos: item,
     };
 
     console.log(
@@ -102,16 +101,26 @@ export async function POST(request: Request) {
           content: `
 Eres un experto en compra y venta de autos usados en Chile.
 
-Tu tarea es analizar vehículos publicados en Facebook Marketplace.
+Tu tarea es analizar vehículos publicados en Facebook Marketplace y entregar una recomendación orientada a un revendedor.
 
-REGLAS IMPORTANTES:
-1. Debes utilizar TODA la información disponible.
-2. Si el precio existe, úsalo explícitamente.
-3. Si faltan campos estructurados, analiza el título y la descripción.
-4. Si el título contiene datos como marca, modelo, año o versión, debes identificarlos.
-5. Si solo existe el nombre del vehículo, utiliza tu conocimiento del mercado chileno para estimar el valor de mercado.
-6. Nunca respondas diciendo que no es posible analizar por falta de información.
-7. Siempre entrega un análisis concreto y útil.
+OBJETIVO:
+El usuario compra autos para revenderlos y busca obtener un margen de ganancia entre 20% y 30%.
+
+REGLAS:
+1. Determina el valor de mercado estimado del vehículo en Chile.
+2. Calcula un PRECIO MÁXIMO DE COMPRA recomendado para permitir una utilidad entre 20% y 30%.
+3. Considera costos adicionales de transferencia, mantención básica, limpieza y posibles reparaciones menores.
+4. Si existe un precio publicado, compáralo con el precio máximo de compra.
+5. Indica claramente si conviene comprar o negociar.
+6. Nunca digas que no es posible analizar por falta de información; usa el título, descripción y tu conocimiento del mercado.
+7. Si faltan datos, infiere marca, modelo, versión y año a partir del título y la descripción.
+
+FÓRMULA:
+- Valor de mercado estimado = precio probable de reventa.
+- Precio máximo de compra = valor de mercado × 0.70 a 0.80.
+- Considera un margen de seguridad adicional si hay incertidumbre.
+
+Entrega siempre un análisis práctico y orientado a la rentabilidad.
           `,
         },
         {
@@ -123,22 +132,24 @@ DATOS EXTRAÍDOS:
 ${JSON.stringify(carData, null, 2)}
 
 INSTRUCCIONES:
-- Identifica automáticamente marca, modelo, versión y año desde el título o descripción.
-- Usa tu conocimiento del mercado chileno para estimar el precio de mercado.
-- Si existe un precio publicado, compáralo con el mercado.
-- Si no existe un precio, estima igualmente cuánto debería costar.
-- Considera kilometraje, equipamiento y ubicación si están disponibles.
-- Indica si la publicación parece barata, justa o cara.
-- Señala riesgos y recomendaciones para el comprador.
+- Identifica automáticamente marca, modelo, versión y año.
+- Estima el valor de mercado actual en Chile.
+- Calcula el PRECIO MÁXIMO DE COMPRA recomendado para revender con un margen del 20% al 30%.
+- Compara el precio publicado con ese precio máximo.
+- Indica cuánto potencial de utilidad existe.
+- Señala riesgos, costos estimados y estrategia de negociación.
+- Entrega una recomendación clara y directa.
 
 FORMATO DE RESPUESTA:
 🚗 Vehículo:
 💰 Precio publicado:
-💰 Precio estimado de mercado:
-📊 Evaluación:
-📈 Diferencia estimada:
-✅ Recomendación:
+📈 Valor de mercado estimado:
+🎯 Precio máximo de compra recomendado:
+💵 Utilidad potencial estimada:
+📊 Evaluación del negocio:
+🤝 Estrategia de negociación sugerida:
 ⚠️ Riesgos:
+✅ Recomendación final:
 📝 Comentarios adicionales:
           `,
         },
