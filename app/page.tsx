@@ -6,21 +6,19 @@ export default function Home() {
   const [url, setUrl] = useState("");
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
-  const [dots, setDots] = useState("");
+  const [dots, setDots] = useState(".");
 
-  // Animación de puntos: ".", "..", "..."
+  // Animación de puntos mientras carga
   useEffect(() => {
     if (!loading) {
-      setDots("");
+      setDots(".");
       return;
     }
 
     const interval = setInterval(() => {
       setDots((prev) => {
-        if (prev === "") return ".";
-        if (prev === ".") return "..";
-        if (prev === "..") return "...";
-        return "";
+        if (prev === "...") return ".";
+        return prev + ".";
       });
     }, 500);
 
@@ -29,7 +27,7 @@ export default function Home() {
 
   const handleAnalyze = async () => {
     if (!url.trim()) {
-      setResult("⚠️ Por favor ingresa un enlace.");
+      alert("Por favor ingresa un enlace de Facebook Marketplace.");
       return;
     }
 
@@ -47,13 +45,13 @@ export default function Home() {
 
       const data = await response.json();
 
-      if (data.success && data.analysis) {
-        setResult(data.analysis);
+      if (data.success) {
+        setResult(data.analysis || "No se recibió análisis.");
       } else {
-        setResult(data.error || "❌ Error de conexión.");
+        setResult(data.error || "Error al analizar.");
       }
     } catch (error) {
-      setResult("❌ Error de conexión.");
+      setResult("Error de conexión.");
     } finally {
       setLoading(false);
     }
@@ -66,38 +64,65 @@ export default function Home() {
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        backgroundColor: "#000000",
-        color: "#ffffff",
-        fontFamily: "Arial, Helvetica, sans-serif",
+        background: "#111",
+        color: "white",
         padding: "20px",
+        fontFamily: "Arial, sans-serif",
       }}
     >
       <div
         style={{
-          backgroundColor: "#1f1f1f",
+          width: "100%",
+          maxWidth: "900px",
+          background: "#222",
           padding: "40px",
           borderRadius: "20px",
-          width: "100%",
-          maxWidth: "700px",
-          boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
+          boxShadow: "0 0 30px rgba(0,0,0,0.5)",
         }}
       >
+        {/* TÍTULO */}
         <h1
           style={{
             textAlign: "center",
             fontSize: "3rem",
             marginBottom: "20px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "15px",
+            flexWrap: "wrap",
           }}
         >
-          🚗 Analizador de Precios de Autos
+          {loading ? (
+            <>
+              <img
+                src="/lucas.png"
+                alt="Señor Lucas"
+                style={{
+                  width: "80px",
+                  height: "80px",
+                  borderRadius: "50%",
+                  objectFit: "cover",
+                  border: "3px solid #00aaff",
+                  boxShadow: "0 0 20px rgba(0,170,255,0.5)",
+                }}
+              />
+              <span>{`Señor Lucas está analizando${dots}`}</span>
+            </>
+          ) : (
+            <>
+              <span>🚗</span>
+              <span>Analizador de Precios de Autos</span>
+            </>
+          )}
         </h1>
 
+        {/* DESCRIPCIÓN */}
         <p
           style={{
             textAlign: "center",
-            color: "#cccccc",
+            fontSize: "1.5rem",
             marginBottom: "30px",
-            fontSize: "1.1rem",
             lineHeight: "1.6",
           }}
         >
@@ -105,38 +130,42 @@ export default function Home() {
           o sobre el precio de mercado.
         </p>
 
+        {/* INPUT */}
         <input
           type="text"
-          placeholder="Pega aquí el enlace del vehículo"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
+          placeholder="Pega aquí el enlace del vehículo"
           style={{
             width: "100%",
-            padding: "16px",
-            fontSize: "1rem",
-            borderRadius: "10px",
-            border: "1px solid #444",
-            backgroundColor: "#2c2c2c",
-            color: "#ffffff",
+            padding: "20px",
+            fontSize: "1.4rem",
+            borderRadius: "12px",
+            border: "1px solid #555",
             marginBottom: "20px",
+            background: "#333",
+            color: "white",
             boxSizing: "border-box",
           }}
         />
 
+        {/* BOTÓN */}
         <button
           onClick={handleAnalyze}
           disabled={loading}
           style={{
             width: "100%",
-            padding: "16px",
-            fontSize: "1.1rem",
+            padding: "20px",
+            fontSize: "1.6rem",
             fontWeight: "bold",
-            borderRadius: "10px",
+            borderRadius: "12px",
             border: "none",
-            backgroundColor: loading ? "#666666" : "#0070f3",
-            color: "#ffffff",
+            background: loading
+              ? "linear-gradient(90deg, #555, #777)"
+              : "linear-gradient(90deg, #0070f3, #00aaff)",
+            color: "white",
             cursor: loading ? "not-allowed" : "pointer",
-            marginBottom: "25px",
+            marginBottom: "30px",
           }}
         >
           {loading
@@ -144,15 +173,16 @@ export default function Home() {
             : "Chúpalo José Ignacio"}
         </button>
 
+        {/* RESULTADO */}
         {result && (
           <div
             style={{
-              backgroundColor: "#2c2c2c",
-              padding: "20px",
-              borderRadius: "12px",
+              background: "#2d2d2d",
+              padding: "30px",
+              borderRadius: "15px",
+              lineHeight: "1.8",
+              fontSize: "1.25rem",
               whiteSpace: "pre-wrap",
-              lineHeight: "1.7",
-              color: "#ffffff",
               border: "1px solid #444",
             }}
           >
