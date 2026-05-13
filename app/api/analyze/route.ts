@@ -1,6 +1,16 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
-import { scrapeMarketplaceData } from "../../../scraper";
+
+// Función temporal para evitar el error del scraper.
+// Después la reemplazaremos por el scraper real de Facebook Marketplace.
+async function scrapeMarketplaceData(url: string) {
+  return {
+    titulo: "Vehículo detectado desde Facebook Marketplace",
+    precioPublicacion: "No extraído todavía",
+    kilometraje: "No disponible",
+    url: url,
+  };
+}
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -10,7 +20,6 @@ export async function POST(request: Request) {
   try {
     const { url } = await request.json();
 
-    // Validar que exista un enlace
     if (!url) {
       return NextResponse.json(
         {
@@ -21,10 +30,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // Obtener datos del vehículo desde Facebook Marketplace
+    // Obtener datos simulados del vehículo
     const carData = await scrapeMarketplaceData(url);
 
-    // Enviar los datos a OpenAI para generar el análisis
+    // Solicitar análisis a OpenAI
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -43,7 +52,7 @@ ${JSON.stringify(carData, null, 2)}
 
 Entrega:
 - Precio estimado de mercado
-- Evaluación del precio
+- Evaluación del precio (bajo, justo o sobreprecio)
 - Ventajas
 - Riesgos
 - Recomendación final
@@ -57,7 +66,6 @@ Entrega:
       completion.choices[0]?.message?.content ||
       "No se pudo generar el análisis.";
 
-    // Responder al frontend
     return NextResponse.json({
       success: true,
       data: carData,
