@@ -86,6 +86,21 @@ export async function POST(request: Request) {
       patente: patente || "No proporcionada",
     };
 
+    // Enlaces útiles si se ingresó patente
+    const linksUtiles =
+      patente && patente.trim() !== ""
+        ? `
+
+🔗 ENLACES ÚTILES PARA VERIFICACIÓN:
+
+🔍 Alerta Vehículo:
+https://alertavehiculo.cl
+
+🛡️ AACH - Conoce Tu Vehículo:
+https://www.conocetuvehiculo.cl
+`
+        : "";
+
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -112,9 +127,6 @@ METODOLOGÍA:
 - Precio máximo conservador = valor de mercado × 0.70
 - Precio máximo recomendado = valor de mercado × 0.75
 - Precio máximo agresivo = valor de mercado × 0.80
-
-IMPORTANTE:
-La prioridad absoluta es indicar con claridad cuánto debe pagarse como máximo para comprar el vehículo y revenderlo con rentabilidad.
           `,
         },
         {
@@ -137,35 +149,21 @@ FORMATO OBLIGATORIO DE RESPUESTA:
 💵 Utilidad potencial estimada:
 📊 Evaluación del negocio:
 🔍 Coherencia del kilometraje:
-
 📈 Historial de kilometraje (últimos 6 años):
-- Si se proporciona la patente, utiliza la información histórica disponible para comparar el kilometraje publicado con los registros más recientes.
-- Presenta hasta seis registros anuales de kilometraje si están disponibles.
-- Compara el kilometraje publicado con el último registro histórico conocido.
-- Si el kilometraje publicado es significativamente menor al último registro, indica una alta probabilidad de adulteración del odómetro.
-- Estima el impacto económico de esta inconsistencia y ajusta el precio máximo de compra recomendado.
-- Si no se dispone de registros históricos reales, explica que se requiere consultar una fuente externa como Alerta Vehículos para confirmarlo.
-
 📋 Revisión Técnica (PRT):
-- Indica si, según el año del vehículo, es altamente probable que deba contar con revisión técnica vigente.
-- Estima el riesgo económico si la revisión técnica estuviera vencida o rechazada.
-- Menciona los costos aproximados de regularización en Chile.
-- Señala si este factor afecta el precio máximo de compra recomendado.
-
 🚦 Multas y observaciones:
-- Explica cómo las multas podrían afectar la rentabilidad.
-
 🔒 Prendas y limitaciones al dominio:
-- Evalúa el impacto económico y legal si existieran.
-
 🛣️ TAG y otras deudas:
-- Explica cómo podrían afectar la rentabilidad.
-
+🏷️ Riesgo de vehículo de remate:
 🔧 Posibles costos y reparaciones:
 🤝 Estrategia de negociación sugerida:
 ⚠️ Señales de alerta:
 🏆 Veredicto final:
 📝 Comentarios adicionales:
+
+Si se proporcionó patente, agrega al final una sección "🔗 Enlaces útiles para verificación" con los enlaces indicados más abajo.
+
+${linksUtiles}
           `,
         },
       ],
